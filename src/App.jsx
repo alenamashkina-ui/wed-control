@@ -209,10 +209,11 @@ const Button = ({ children, onClick, variant = 'primary', className = "", disabl
   );
 };
 
-const Input = ({ label, ...props }) => (
+const Input = ({ label, onKeyDown, ...props }) => (
   <div className="mb-4">
     {label && <label className="block text-xs font-semibold text-[#AC8A69] uppercase tracking-wider mb-2 ml-1">{label}</label>}
     <input 
+      onKeyDown={onKeyDown}
       className="w-full bg-[#F9F7F5] border-none rounded-xl p-4 text-[#414942] placeholder-[#CCBBA9] focus:ring-2 focus:ring-[#936142]/20 transition-all outline-none"
       {...props}
     />
@@ -606,10 +607,27 @@ export default function WeddingPlanner() {
   const [recoverySecret, setRecoverySecret] = useState('');
   const [recoveryNewPass, setRecoveryNewPass] = useState('');
 
-  // 1. Authenticate with Firebase
+  // 1. Authenticate with Firebase & Auto-Login from LocalStorage
   useEffect(() => {
     const initAuth = async () => {
         await signInAnonymously(auth);
+        
+        // AUTO LOGIN LOGIC
+        const savedUser = localStorage.getItem('wed_user');
+        if (savedUser) {
+            try {
+                const parsedUser = JSON.parse(savedUser);
+                setUser(parsedUser);
+                // Also prepopulate profile fields
+                setNewProfileEmail(parsedUser.email);
+                setNewProfilePass(parsedUser.password);
+                setNewProfileSecret(parsedUser.secret || '');
+                setView('dashboard');
+            } catch (e) {
+                console.error("Failed to parse saved user", e);
+                localStorage.removeItem('wed_user');
+            }
+        }
     };
     initAuth();
     return onAuthStateChanged(auth, setAuthUser);
@@ -641,7 +659,7 @@ export default function WeddingPlanner() {
       return () => unsubOrganizers();
   }, [authUser]);
 
-  // 3. Data Sync
+  // 3. Data Sync (FIXED LOOP)
   useEffect(() => {
     if (!authUser) return;
     const urlParams = new URLSearchParams(window.location.search);
@@ -665,7 +683,7 @@ export default function WeddingPlanner() {
       
       setProjects(visibleProjects);
       
-      // FIX: Update currentProject using functional state update to avoid dependency loop
+      // FIX FOR INFINITE LOOP: Using functional update to compare IDs
       setCurrentProject(prev => {
            if (!prev) return null;
            const updated = allProjects.find(p => p.id === prev.id);
@@ -674,7 +692,7 @@ export default function WeddingPlanner() {
     });
 
     return () => unsubscribeProjects();
-  }, [user, authUser, view]); // REMOVED currentProject from dependencies
+  }, [user, authUser, view]); // REMOVED currentProject from dependency array
 
   const handleLogin = async () => {
     if (!authUser) { alert("Соединение..."); return; }
@@ -684,7 +702,11 @@ export default function WeddingPlanner() {
         const foundUser = users.find(u => u.email === loginEmail.toLowerCase().trim() && u.password === loginPass.trim());
         
         if (foundUser) {
-            setUser({ id: foundUser.id, role: foundUser.role, name: foundUser.name, email: foundUser.email, password: foundUser.password, secret: foundUser.secret });
+            const userData = { id: foundUser.id, role: foundUser.role, name: foundUser.name, email: foundUser.email, password: foundUser.password, secret: foundUser.secret };
+            setUser(userData);
+            // SAVE TO LOCAL STORAGE
+            localStorage.setItem('wed_user', JSON.stringify(userData));
+            
             setNewProfileEmail(foundUser.email);
             setNewProfilePass(foundUser.password);
             setNewProfileSecret(foundUser.secret || '');
@@ -697,6 +719,20 @@ export default function WeddingPlanner() {
     });
   };
 
+  const handleLogout = () => {
+      localStorage.removeItem('wed_user');
+      setUser(null);
+      setView('login');
+      setLoginEmail('');
+      setLoginPass('');
+  };
+
+  const handleKeyDown = (e) => {
+      if (e.key === 'Enter') {
+          handleLogin();
+      }
+  };
+
   const handleRecovery = async () => {
       if (!recoveryEmail || !recoverySecret || !recoveryNewPass) {
           alert("Заполните все поля");
@@ -704,7 +740,6 @@ export default function WeddingPlanner() {
       }
       const unsubscribe = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), async (snapshot) => {
           const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          // Ищем пользователя по почте и секретному слову
           const foundUser = users.find(u => u.email === recoveryEmail.toLowerCase().trim() && u.secret === recoverySecret.trim());
           
           if (foundUser) {
@@ -738,7 +773,9 @@ export default function WeddingPlanner() {
           password: newProfilePass.trim(),
           secret: newProfileSecret.trim()
       });
-      setUser({...user, email: newProfileEmail, password: newProfilePass, secret: newProfileSecret});
+      const updatedUser = {...user, email: newProfileEmail, password: newProfilePass, secret: newProfileSecret};
+      setUser(updatedUser);
+      localStorage.setItem('wed_user', JSON.stringify(updatedUser)); // Update storage too
       alert('Данные обновлены');
       setShowProfile(false);
   };
@@ -764,7 +801,10 @@ export default function WeddingPlanner() {
         
         const newProject = { ...formData, clientPassword: formData.clientPassword || Math.floor(1000+Math.random()*9000).toString(), tasks: projectTasks, expenses: projectExpenses, timing: INITIAL_TIMING.map(t=>({...t, id: Math.random().toString(36).substr(2,9)})), guests: [], notes: '', isArchived: false, organizerId: finalOrgId, organizerName: finalOrgName, createdAt: new Date().toISOString() };
         const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), newProject);
-        setCurrentProject({ id: docRef.id, ...newProject }); setView('project'); setActiveTab('overview');
+        // FIX: Explicitly set view and project, ensure it doesn't conflict with sync effect
+        setCurrentProject({ id: docRef.id, ...newProject }); 
+        setView('project'); 
+        setActiveTab('overview');
     } catch (e) { console.error(e); alert("Ошибка"); } finally { setIsCreating(false); }
   };
 
@@ -812,8 +852,19 @@ export default function WeddingPlanner() {
                   <p className="text-[#AC8A69]">Система управления свадьбами</p>
               </div>
               <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4">
-                  <Input placeholder="Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} />
-                  <Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} />
+                  <Input 
+                    placeholder="Email" 
+                    value={loginEmail} 
+                    onChange={e => setLoginEmail(e.target.value)} 
+                    onKeyDown={handleKeyDown}
+                  />
+                  <Input 
+                    placeholder="Пароль" 
+                    type="password" 
+                    value={loginPass} 
+                    onChange={e => setLoginPass(e.target.value)} 
+                    onKeyDown={handleKeyDown}
+                  />
                   <Button className="w-full" onClick={handleLogin}>Войти</Button>
                   <button onClick={() => setView('recovery')} className="w-full text-center text-xs text-[#AC8A69] hover:underline mt-4 block">Забыли пароль?</button>
               </div>
@@ -844,7 +895,7 @@ export default function WeddingPlanner() {
             <div className="flex gap-2 w-full md:w-auto flex-wrap">
                 <Button onClick={() => { setFormData({...INITIAL_FORM_STATE, clientPassword: Math.floor(1000+Math.random()*9000).toString()}); setView('create'); window.scrollTo(0,0); }}><Plus size={20}/> Новый проект</Button>
                 {user.role === 'owner' && <Button variant="secondary" onClick={() => setView('manage_organizers')}><UsersIcon size={20}/> Команда</Button>}
-                <Button variant="ghost" onClick={() => { setUser(null); setView('login'); setLoginEmail(''); setLoginPass(''); }}><LogOut size={20}/></Button>
+                <Button variant="ghost" onClick={handleLogout}><LogOut size={20}/></Button>
             </div>
           </header>
            
