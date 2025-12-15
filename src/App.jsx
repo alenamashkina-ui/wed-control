@@ -247,19 +247,33 @@ const MoneyInput = ({ value, onChange, className }) => {
 const AutoHeightTextarea = ({ value, onChange, className, placeholder }) => {
   const textareaRef = useRef(null);
 
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+  const adjustHeight = useCallback(() => {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
     }
-  }, [value]);
+  }, []);
+
+  useEffect(() => {
+    adjustHeight();
+  }, [value, adjustHeight]);
+
+  // Adjust on mount with a small delay to ensure rendering
+  useEffect(() => {
+     adjustHeight();
+     const timer = setTimeout(adjustHeight, 10);
+     return () => clearTimeout(timer);
+  }, [adjustHeight]);
 
   return (
     <textarea
       ref={textareaRef}
       className={`${className} resize-none overflow-hidden block`}
       value={value}
-      onChange={onChange}
+      onChange={(e) => {
+          onChange(e);
+      }}
       rows={1}
       placeholder={placeholder}
     />
