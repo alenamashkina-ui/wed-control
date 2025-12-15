@@ -361,7 +361,7 @@ const BudgetView = ({ expenses, updateProject, downloadCSV }) => {
       <div className="bg-white rounded-2xl shadow-sm border border-[#EBE5E0] overflow-hidden print:shadow-none print:border-none">
           <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[1000px] print:min-w-0">
-                  <thead><tr className="bg-[#F9F7F5] text-[#936142] text-xs uppercase tracking-wider print:bg-transparent print:border-b print:border-[#414942]">
+                  <thead><tr className="bg-[#F9F7F5] text-[#936142] text-xs md:text-sm uppercase tracking-wider print:bg-transparent print:border-b print:border-[#414942]">
                       <th className="p-2 md:p-4 font-semibold w-[200px] min-w-[200px]">Статья</th>
                       <th className="p-2 md:p-4 font-semibold w-[120px] min-w-[120px]">План</th>
                       <th className="p-2 md:p-4 font-semibold w-[120px] min-w-[120px]">Факт</th>
@@ -373,11 +373,11 @@ const BudgetView = ({ expenses, updateProject, downloadCSV }) => {
                   <tbody className="divide-y divide-[#EBE5E0] print:divide-[#CCBBA9]">
                   {expenses.map((item, idx) => (
                       <tr key={idx} className="hover:bg-[#F9F7F5]/50 group print:break-inside-avoid">
-                      <td className="p-2 md:p-4 align-top"><textarea className="w-full bg-transparent outline-none font-medium text-[#414942] resize-none overflow-hidden h-auto text-xs md:text-base whitespace-normal" value={item.name} rows={1} style={{ minHeight: '24px', height: 'auto' }} onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} onChange={(e) => updateExpense(idx, 'name', e.target.value)} /></td>
-                      <td className="p-2 md:p-4 align-top"><MoneyInput value={item.plan} onChange={(val) => updateExpense(idx, 'plan', val)} className="w-full text-[#414942] text-xs md:text-base" /></td>
-                      <td className="p-2 md:p-4 align-top"><MoneyInput value={item.fact} onChange={(val) => updateExpense(idx, 'fact', val)} className="w-full text-[#414942] text-xs md:text-base" /></td>
-                      <td className="p-2 md:p-4 align-top"><MoneyInput value={item.paid} onChange={(val) => updateExpense(idx, 'paid', val)} className="w-full text-[#414942] text-xs md:text-base" /></td>
-                      <td className="p-2 md:p-4 align-top text-[#AC8A69] text-xs md:text-base">{formatCurrency(item.fact - item.paid)}</td>
+                      <td className="p-2 md:p-4 align-top"><textarea className="w-full bg-transparent outline-none font-medium text-[#414942] resize-none overflow-hidden h-auto text-sm md:text-base whitespace-normal min-h-[1.5rem]" value={item.name} rows={1} onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} onChange={(e) => updateExpense(idx, 'name', e.target.value)} /></td>
+                      <td className="p-2 md:p-4 align-top"><MoneyInput value={item.plan} onChange={(val) => updateExpense(idx, 'plan', val)} className="w-full text-[#414942] text-sm md:text-base" /></td>
+                      <td className="p-2 md:p-4 align-top"><MoneyInput value={item.fact} onChange={(val) => updateExpense(idx, 'fact', val)} className="w-full text-[#414942] text-sm md:text-base" /></td>
+                      <td className="p-2 md:p-4 align-top"><MoneyInput value={item.paid} onChange={(val) => updateExpense(idx, 'paid', val)} className="w-full text-[#414942] text-sm md:text-base" /></td>
+                      <td className="p-2 md:p-4 align-top text-[#AC8A69] text-sm md:text-base">{formatCurrency(item.fact - item.paid)}</td>
                       <td className="p-2 md:p-4 align-top"><textarea className="w-full bg-transparent outline-none text-xs text-[#AC8A69] placeholder-[#CCBBA9] resize-y min-h-[40px] leading-tight" placeholder="..." value={item.note || ''} onChange={(e) => updateExpense(idx, 'note', e.target.value)} /></td>
                       <td className="p-2 md:p-4 align-top print:hidden"><button onClick={() => removeExpense(idx)} className="text-red-300 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button></td>
                       </tr>
