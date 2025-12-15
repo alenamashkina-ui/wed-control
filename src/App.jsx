@@ -13,6 +13,10 @@ import {
   deleteDoc, doc, onSnapshot, query, where, getDocs 
 } from "firebase/firestore";
 
+// --- CONFIG ---
+// Оставь пустым или укажи свой домен, если он есть
+const SITE_URL = 'https://wed-control.vercel.app'; 
+
 // --- FIREBASE SETUP ---
 const firebaseConfig = {
     apiKey: "AIzaSyApHVEteylAoYqC2TSmJr0zk3LL5n8uep8",
@@ -783,7 +787,6 @@ export default function WeddingPlanner() {
   const toggleArchiveProject = async () => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id), { isArchived: !currentProject.isArchived }); setIsEditingProject(false); setView('dashboard'); };
 
   // --- VIEWS ---
-  // (Остальной код интерфейса остался прежним)
   
   if (view === 'client_login') {
       return (
@@ -955,7 +958,10 @@ export default function WeddingPlanner() {
                 <Key className="text-[#936142]" />
                 <div className="flex-1">
                     <p className="text-xs font-bold text-[#AC8A69] uppercase">Пароль для клиента (авто)</p>
-                    <input className="bg-transparent font-mono text-xl font-bold text-[#414942] outline-none w-full" value={formData.clientPassword} onChange={e => setFormData({...formData, clientPassword: e.target.value})} />
+                    <div className="flex gap-2">
+                        <input className="bg-transparent font-mono text-xl font-bold text-[#414942] outline-none w-full" value={formData.clientPassword} onChange={e => setFormData({...formData, clientPassword: e.target.value})} />
+                        <button onClick={() => setFormData({...formData, clientPassword: Math.floor(1000 + Math.random() * 9000).toString()})} className="text-[#AC8A69] hover:text-[#936142]"><Edit3 size={16}/></button>
+                    </div>
                 </div>
             </div>
             <Button onClick={handleCreateProject} disabled={isCreating} className="w-full mt-8">{isCreating ? <><Loader2 className="animate-spin"/> Создание...</> : 'Создать проект'}</Button>
@@ -968,7 +974,7 @@ export default function WeddingPlanner() {
   if (view === 'project' && currentProject) {
     const daysLeft = getDaysUntil(currentProject.date);
     return (
-      <div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]">
+      <div className="w-full min-h-screen h-auto overflow-visible bg-[#F9F7F5] font-[Montserrat]">
          <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-[#EBE5E0] print:hidden">
             <div className="max-w-7xl mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
                 <div className="flex items-center gap-2 md:gap-4">{user.role !== 'client' && <button onClick={() => setView('dashboard')} className="p-2 hover:bg-[#F9F7F5] rounded-full transition-colors text-[#AC8A69]"><ChevronLeft /></button>}<span className="text-lg md:text-xl font-bold text-[#936142] tracking-tight whitespace-nowrap">Wed.Control</span></div>
@@ -993,8 +999,8 @@ export default function WeddingPlanner() {
                             <div className="bg-[#F9F7F5] p-4 rounded-xl mb-4 border border-[#AC8A69]/20">
                                 <p className="text-[10px] text-[#AC8A69] uppercase font-bold mb-2">Доступ для клиента</p>
                                 <div className="flex gap-2 mb-2 items-center">
-                                    <input className="flex-1 bg-white border border-[#EBE5E0] rounded-lg p-2 text-sm text-[#AC8A69] overflow-hidden text-ellipsis" value={`${window.location.origin}?id=${currentProject.id}`} readOnly />
-                                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}?id=${currentProject.id}`); alert('Ссылка скопирована!'); }} className="bg-[#936142] text-white p-2 rounded-lg hover:bg-[#7D5238] transition-colors"><LinkIcon size={16}/></button>
+                                    <input className="flex-1 bg-white border border-[#EBE5E0] rounded-lg p-2 text-sm text-[#AC8A69] overflow-hidden text-ellipsis" value={`${SITE_URL}/?id=${currentProject.id}`} readOnly />
+                                    <button onClick={() => { navigator.clipboard.writeText(`${SITE_URL}/?id=${currentProject.id}`); alert('Ссылка скопирована!'); }} className="bg-[#936142] text-white p-2 rounded-lg hover:bg-[#7D5238] transition-colors"><LinkIcon size={16}/></button>
                                 </div>
                                 <Input label="Пароль клиента" value={currentProject.clientPassword} onChange={(e) => updateProject('clientPassword', e.target.value)} />
                             </div>
