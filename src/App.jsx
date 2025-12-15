@@ -14,7 +14,6 @@ import {
 } from "firebase/firestore";
 
 // --- CONFIG ---
-// Оставь пустым или укажи свой домен, если он есть
 const SITE_URL = 'https://wed-control.vercel.app'; 
 
 // --- FIREBASE SETUP ---
@@ -361,18 +360,18 @@ const BudgetView = ({ expenses, updateProject, downloadCSV }) => {
       <div className="hidden print:block mb-8"><h1 className="text-3xl font-serif text-[#414942] mb-2">Смета проекта</h1><div className="flex justify-between border-b pb-2 border-[#AC8A69]"><p>План: {formatCurrency(totals.plan)}</p><p>Факт: {formatCurrency(totals.fact)}</p><p>Внесено: {formatCurrency(totals.paid)}</p></div></div>
       <div className="bg-white rounded-2xl shadow-sm border border-[#EBE5E0] overflow-hidden print:shadow-none print:border-none">
           <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-full print:min-w-0">
-                  <thead><tr className="bg-[#F9F7F5] text-[#936142] text-xs uppercase tracking-wider print:bg-transparent print:border-b print:border-[#414942]"><th className="p-1 md:p-4 font-semibold w-24 md:w-[40%] text-[10px] md:text-xs">Статья</th><th className="p-1 md:p-4 font-semibold w-16 md:w-28 text-[10px] md:text-xs">План</th><th className="p-1 md:p-4 font-semibold w-16 md:w-28 text-[10px] md:text-xs">Факт</th><th className="p-1 md:p-4 font-semibold w-16 md:w-28 text-[10px] md:text-xs">Внесено</th><th className="p-1 md:p-4 font-semibold w-16 md:w-28 text-[10px] md:text-xs">Остаток</th><th className="p-1 md:p-4 font-semibold w-24 md:w-48 text-[10px] md:text-xs hidden md:table-cell">Коммент</th><th className="p-1 md:p-4 font-semibold w-6 md:w-10 print:hidden"></th></tr></thead>
+              <table className="w-full text-left border-collapse min-w-[700px] md:min-w-0 print:min-w-0">
+                  <thead><tr className="bg-[#F9F7F5] text-[#936142] text-xs uppercase tracking-wider print:bg-transparent print:border-b print:border-[#414942]"><th className="p-2 md:p-4 font-semibold w-32 md:w-[40%]">Статья</th><th className="p-2 md:p-4 font-semibold w-24 md:w-28">План</th><th className="p-2 md:p-4 font-semibold w-24 md:w-28">Факт</th><th className="p-2 md:p-4 font-semibold w-24 md:w-28">Внесено</th><th className="p-2 md:p-4 font-semibold w-24 md:w-28">Остаток</th><th className="p-2 md:p-4 font-semibold w-32 md:w-48 hidden md:table-cell">Коммент</th><th className="p-2 md:p-4 font-semibold w-10 print:hidden"></th></tr></thead>
                   <tbody className="divide-y divide-[#EBE5E0] print:divide-[#CCBBA9]">
                   {expenses.map((item, idx) => (
                       <tr key={idx} className="hover:bg-[#F9F7F5]/50 group print:break-inside-avoid">
-                      <td className="p-1 md:p-4 align-top"><textarea className="w-full bg-transparent outline-none font-medium text-[#414942] resize-none overflow-hidden h-auto text-xs md:text-base" value={item.name} rows={1} style={{ minHeight: '24px', height: 'auto' }} onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} onChange={(e) => updateExpense(idx, 'name', e.target.value)} /></td>
-                      <td className="p-1 md:p-4 align-top"><MoneyInput value={item.plan} onChange={(val) => updateExpense(idx, 'plan', val)} className="w-full text-[#414942] text-xs md:text-base" /></td>
-                      <td className="p-1 md:p-4 align-top"><MoneyInput value={item.fact} onChange={(val) => updateExpense(idx, 'fact', val)} className="w-full text-[#414942] text-xs md:text-base" /></td>
-                      <td className="p-1 md:p-4 align-top"><MoneyInput value={item.paid} onChange={(val) => updateExpense(idx, 'paid', val)} className="w-full text-[#414942] text-xs md:text-base" /></td>
-                      <td className="p-1 md:p-4 align-top text-[#AC8A69] text-xs md:text-base">{formatCurrency(item.fact - item.paid)}</td>
-                      <td className="p-1 md:p-4 align-top hidden md:table-cell"><textarea className="w-full bg-transparent outline-none text-xs text-[#AC8A69] placeholder-[#CCBBA9] resize-y min-h-[40px] leading-tight" placeholder="..." value={item.note || ''} onChange={(e) => updateExpense(idx, 'note', e.target.value)} /></td>
-                      <td className="p-1 md:p-4 align-top print:hidden"><button onClick={() => removeExpense(idx)} className="text-red-300 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button></td>
+                      <td className="p-2 md:p-4 align-top"><textarea className="w-full bg-transparent outline-none font-medium text-[#414942] resize-none overflow-hidden h-auto" value={item.name} rows={1} style={{ minHeight: '24px', height: 'auto' }} onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} onChange={(e) => updateExpense(idx, 'name', e.target.value)} /></td>
+                      <td className="p-2 md:p-4 align-top"><MoneyInput value={item.plan} onChange={(val) => updateExpense(idx, 'plan', val)} className="w-full text-[#414942]" /></td>
+                      <td className="p-2 md:p-4 align-top"><MoneyInput value={item.fact} onChange={(val) => updateExpense(idx, 'fact', val)} className="w-full text-[#414942]" /></td>
+                      <td className="p-2 md:p-4 align-top"><MoneyInput value={item.paid} onChange={(val) => updateExpense(idx, 'paid', val)} className="w-full text-[#414942]" /></td>
+                      <td className="p-2 md:p-4 align-top text-[#AC8A69]">{formatCurrency(item.fact - item.paid)}</td>
+                      <td className="p-2 md:p-4 align-top hidden md:table-cell"><textarea className="w-full bg-transparent outline-none text-xs text-[#AC8A69] placeholder-[#CCBBA9] resize-y min-h-[40px] leading-tight" placeholder="..." value={item.note || ''} onChange={(e) => updateExpense(idx, 'note', e.target.value)} /></td>
+                      <td className="p-2 md:p-4 align-top print:hidden"><button onClick={() => removeExpense(idx)} className="text-red-300 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button></td>
                       </tr>
                   ))}
                   </tbody>
