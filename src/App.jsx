@@ -665,14 +665,16 @@ export default function WeddingPlanner() {
       
       setProjects(visibleProjects);
       
-      if (currentProject) {
-        const updated = allProjects.find(p => p.id === currentProject.id);
-        if (updated) setCurrentProject(updated);
-      }
+      // FIX: Update currentProject using functional state update to avoid dependency loop
+      setCurrentProject(prev => {
+           if (!prev) return null;
+           const updated = allProjects.find(p => p.id === prev.id);
+           return updated || prev;
+      });
     });
 
     return () => unsubscribeProjects();
-  }, [user, authUser, currentProject, view]);
+  }, [user, authUser, view]); // REMOVED currentProject from dependencies
 
   const handleLogin = async () => {
     if (!authUser) { alert("Соединение..."); return; }
