@@ -607,18 +607,15 @@ export default function WeddingPlanner() {
   const [recoverySecret, setRecoverySecret] = useState('');
   const [recoveryNewPass, setRecoveryNewPass] = useState('');
 
-  // 1. Authenticate with Firebase & Auto-Login from LocalStorage
+  // 1. Authenticate with Firebase & Auto-Login
   useEffect(() => {
     const initAuth = async () => {
         await signInAnonymously(auth);
-        
-        // AUTO LOGIN LOGIC
         const savedUser = localStorage.getItem('wed_user');
         if (savedUser) {
             try {
                 const parsedUser = JSON.parse(savedUser);
                 setUser(parsedUser);
-                // Also prepopulate profile fields
                 setNewProfileEmail(parsedUser.email);
                 setNewProfilePass(parsedUser.password);
                 setNewProfileSecret(parsedUser.secret || '');
@@ -644,7 +641,7 @@ export default function WeddingPlanner() {
                       password: 'admin',
                       name: 'Владелец',
                       role: 'owner',
-                      secret: 'secret' // Default secret word
+                      secret: 'secret'
                   });
               }
               unsub(); 
@@ -659,7 +656,7 @@ export default function WeddingPlanner() {
       return () => unsubOrganizers();
   }, [authUser]);
 
-  // 3. Data Sync (FIXED LOOP)
+  // 3. MAIN PROJECTS LIST SYNC (Only fetches list)
   useEffect(() => {
     if (!authUser) return;
     const urlParams = new URLSearchParams(window.location.search);
@@ -682,17 +679,24 @@ export default function WeddingPlanner() {
       else if (user?.role === 'client') visibleProjects = allProjects.filter(p => p.id === user.projectId);
       
       setProjects(visibleProjects);
-      
-      // FIX FOR INFINITE LOOP: Using functional update to compare IDs
-      setCurrentProject(prev => {
-           if (!prev) return null;
-           const updated = allProjects.find(p => p.id === prev.id);
-           return updated || prev;
-      });
     });
 
     return () => unsubscribeProjects();
-  }, [user, authUser, view]); // REMOVED currentProject from dependency array
+  }, [user, authUser, view]);
+
+  // 4. ACTIVE PROJECT SYNC (Only runs when a project is OPEN)
+  useEffect(() => {
+      if (!currentProject?.id || view !== 'project') return;
+      
+      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id);
+      const unsubscribe = onSnapshot(docRef, (docSnap) => {
+         if (docSnap.exists()) {
+             // Updates only the active project without triggering the list re-render loop
+             setCurrentProject(prev => ({ ...prev, ...docSnap.data() })); 
+         }
+      });
+      return () => unsubscribe();
+  }, [currentProject?.id, view]); // Only re-subscribes if ID changes or view opens
 
   const handleLogin = async () => {
     if (!authUser) { alert("Соединение..."); return; }
@@ -704,9 +708,7 @@ export default function WeddingPlanner() {
         if (foundUser) {
             const userData = { id: foundUser.id, role: foundUser.role, name: foundUser.name, email: foundUser.email, password: foundUser.password, secret: foundUser.secret };
             setUser(userData);
-            // SAVE TO LOCAL STORAGE
             localStorage.setItem('wed_user', JSON.stringify(userData));
-            
             setNewProfileEmail(foundUser.email);
             setNewProfilePass(foundUser.password);
             setNewProfileSecret(foundUser.secret || '');
@@ -728,83 +730,51 @@ export default function WeddingPlanner() {
   };
 
   const handleKeyDown = (e) => {
-      if (e.key === 'Enter') {
-          handleLogin();
-      }
+      if (e.key === 'Enter') handleLogin();
   };
 
   const handleRecovery = async () => {
-      if (!recoveryEmail || !recoverySecret || !recoveryNewPass) {
-          alert("Заполните все поля");
-          return;
-      }
+      if (!recoveryEmail || !recoverySecret || !recoveryNewPass) { alert("Заполните все поля"); return; }
       const unsubscribe = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), async (snapshot) => {
           const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           const foundUser = users.find(u => u.email === recoveryEmail.toLowerCase().trim() && u.secret === recoverySecret.trim());
-          
           if (foundUser) {
-              await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', foundUser.id), {
-                  password: recoveryNewPass.trim()
-              });
-              alert("Пароль успешно изменен! Теперь войдите с новым паролем.");
-              setView('login');
-              unsubscribe();
-          } else {
-              alert("Неверная почта или секретное слово");
-              unsubscribe();
-          }
+              await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', foundUser.id), { password: recoveryNewPass.trim() });
+              alert("Пароль успешно изменен!"); setView('login'); unsubscribe();
+          } else { alert("Неверная почта или секретное слово"); unsubscribe(); }
       });
   };
 
   const handleClientLinkLogin = () => {
       if (currentProject && currentProject.clientPassword === loginPass.trim()) {
           setUser({ id: 'client', role: 'client', projectId: currentProject.id, name: 'Клиент' });
-          setView('project');
-          setActiveTab('overview');
-      } else {
-          alert('Неверный пароль доступа');
-      }
+          setView('project'); setActiveTab('overview');
+      } else { alert('Неверный пароль доступа'); }
   };
 
   const updateUserProfile = async () => {
       if (!newProfileEmail.trim() || !newProfilePass.trim()) return;
-      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.id), {
-          email: newProfileEmail.toLowerCase().trim(),
-          password: newProfilePass.trim(),
-          secret: newProfileSecret.trim()
-      });
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.id), { email: newProfileEmail.toLowerCase().trim(), password: newProfilePass.trim(), secret: newProfileSecret.trim() });
       const updatedUser = {...user, email: newProfileEmail, password: newProfilePass, secret: newProfileSecret};
-      setUser(updatedUser);
-      localStorage.setItem('wed_user', JSON.stringify(updatedUser)); // Update storage too
-      alert('Данные обновлены');
-      setShowProfile(false);
+      setUser(updatedUser); localStorage.setItem('wed_user', JSON.stringify(updatedUser)); alert('Данные обновлены'); setShowProfile(false);
   };
 
   const handleCreateProject = async () => {
     if (!formData.groomName || !formData.brideName || !formData.date) { alert("Заполните имена и дату"); return; }
     setIsCreating(true);
     try {
-        const creationDate = new Date();
-        const weddingDate = new Date(formData.date);
+        const creationDate = new Date(); const weddingDate = new Date(formData.date);
         let projectTasks = TASK_TEMPLATES.map(t => ({ id: Math.random().toString(36).substr(2, 9), text: t.text, deadline: new Date(creationDate.getTime() + (weddingDate - creationDate) * t.pos).toISOString(), done: false })).sort((a,b)=>new Date(a.deadline)-new Date(b.deadline));
         let projectExpenses = [...INITIAL_EXPENSES];
         if (formData.prepLocation === 'hotel') { projectTasks.push({ id: 'hotel_1', text: 'Забронировать номер', deadline: new Date().toISOString(), done: false }); projectExpenses.push({ category: 'Логистика', name: 'Номер в отеле', plan: 0, fact: 0, paid: 0, note: '' }); }
         if (formData.registrationType === 'offsite') { projectTasks.push({ id: 'reg_1', text: 'Выбрать регистратора', deadline: new Date().toISOString(), done: false }); projectExpenses.push({ category: 'Программа', name: 'Регистратор', plan: 0, fact: 0, paid: 0, note: '' }); }
         
         let finalOrgId = user.id; let finalOrgName = user.name;
-        if (user.role === 'owner') {
-             if (formData.organizerId && formData.organizerId !== 'owner') {
-                const selectedOrg = organizersList.find(o => o.id === formData.organizerId);
-                if (selectedOrg) { finalOrgId = selectedOrg.id; finalOrgName = selectedOrg.name; }
-            }
-        }
+        if (user.role === 'owner') { if (formData.organizerId && formData.organizerId !== 'owner') { const selectedOrg = organizersList.find(o => o.id === formData.organizerId); if (selectedOrg) { finalOrgId = selectedOrg.id; finalOrgName = selectedOrg.name; } } }
         
         const newProject = { ...formData, clientPassword: formData.clientPassword || Math.floor(1000+Math.random()*9000).toString(), tasks: projectTasks, expenses: projectExpenses, timing: INITIAL_TIMING.map(t=>({...t, id: Math.random().toString(36).substr(2,9)})), guests: [], notes: '', isArchived: false, organizerId: finalOrgId, organizerName: finalOrgName, createdAt: new Date().toISOString() };
         const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), newProject);
-        // FIX: Explicitly set view and project, ensure it doesn't conflict with sync effect
-        setCurrentProject({ id: docRef.id, ...newProject }); 
-        setView('project'); 
-        setActiveTab('overview');
+        setCurrentProject({ id: docRef.id, ...newProject }); setView('project'); setActiveTab('overview');
     } catch (e) { console.error(e); alert("Ошибка"); } finally { setIsCreating(false); }
   };
 
@@ -813,7 +783,8 @@ export default function WeddingPlanner() {
   const toggleArchiveProject = async () => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id), { isArchived: !currentProject.isArchived }); setIsEditingProject(false); setView('dashboard'); };
 
   // --- VIEWS ---
-
+  // (Остальной код интерфейса остался прежним)
+  
   if (view === 'client_login') {
       return (
           <div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6">
@@ -942,6 +913,132 @@ export default function WeddingPlanner() {
             </div>
           )}
         </div>
+      </div>
+    );
+  }
+
+  if (view === 'create') {
+    return (
+      <div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex items-center justify-center p-6 print:hidden">
+        <Card className="w-full max-w-2xl p-8 md:p-12 animate-slideUp">
+          <div className="flex items-center mb-8"><button onClick={() => setView('dashboard')} className="mr-4 text-[#AC8A69] hover:text-[#936142]"><ChevronLeft size={24}/></button><h2 className="text-3xl font-bold text-[#414942]">Создание истории</h2></div>
+          <div className="space-y-6">
+            {user.role === 'owner' ? (
+                <div>
+                    <label className="block text-xs font-semibold text-[#AC8A69] uppercase tracking-wider mb-2 ml-1">Ответственный организатор</label>
+                    <select 
+                        className="w-full bg-[#F9F7F5] border-none rounded-xl p-4 text-[#414942] outline-none focus:ring-2 focus:ring-[#936142]/20 mb-4"
+                        value={formData.organizerId}
+                        onChange={e => setFormData({...formData, organizerId: e.target.value})}
+                    >
+                        <option value="owner">Владелец (Я)</option>
+                        {organizersList.map(org => (
+                            <option key={org.id} value={org.id}>{org.name}</option>
+                        ))}
+                    </select>
+                </div>
+            ) : null}
+            <div className="p-6 bg-[#F9F7F5] rounded-xl space-y-6">
+                <p className="text-[#936142] font-semibold text-sm uppercase tracking-wider mb-4 border-b border-[#CCBBA9]/20 pb-2">О паре</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><Input label="Жених" placeholder="Имя" value={formData.groomName} onChange={e => setFormData({...formData, groomName: e.target.value})} /><Input label="Невеста" placeholder="Имя" value={formData.brideName} onChange={e => setFormData({...formData, brideName: e.target.value})} /></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><Input label="Дата свадьбы" type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} /><Input label="Гостей" type="number" placeholder="50" value={formData.guestsCount} onChange={e => setFormData({...formData, guestsCount: e.target.value})} /></div>
+            </div>
+            <div className="space-y-4">
+                <label className="block text-xs font-semibold text-[#AC8A69] uppercase tracking-wider ml-1">Детали дня</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <select className="w-full bg-white border border-[#EBE5E0] rounded-xl p-4 text-[#414942] outline-none focus:border-[#AC8A69]" value={formData.prepLocation} onChange={e => setFormData({...formData, prepLocation: e.target.value})}><option value="home">Сборы дома</option><option value="hotel">Сборы в отеле</option></select>
+                    <select className="w-full bg-white border border-[#EBE5E0] rounded-xl p-4 text-[#414942] outline-none focus:border-[#AC8A69]" value={formData.registrationType} onChange={e => setFormData({...formData, registrationType: e.target.value})}><option value="official">ЗАГС</option><option value="offsite">Выездная регистрация</option></select>
+                </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4"><Input label="Локация" placeholder="Название ресторана / отеля" value={formData.venueName} onChange={e => setFormData({...formData, venueName: e.target.value})} /></div>
+            <div className="bg-[#F9F7F5] p-4 rounded-xl flex items-center gap-3 border border border-[#AC8A69]/20">
+                <Key className="text-[#936142]" />
+                <div className="flex-1">
+                    <p className="text-xs font-bold text-[#AC8A69] uppercase">Пароль для клиента (авто)</p>
+                    <input className="bg-transparent font-mono text-xl font-bold text-[#414942] outline-none w-full" value={formData.clientPassword} onChange={e => setFormData({...formData, clientPassword: e.target.value})} />
+                </div>
+            </div>
+            <Button onClick={handleCreateProject} disabled={isCreating} className="w-full mt-8">{isCreating ? <><Loader2 className="animate-spin"/> Создание...</> : 'Создать проект'}</Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (view === 'project' && currentProject) {
+    const daysLeft = getDaysUntil(currentProject.date);
+    return (
+      <div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]">
+         <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-[#EBE5E0] print:hidden">
+            <div className="max-w-7xl mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
+                <div className="flex items-center gap-2 md:gap-4">{user.role !== 'client' && <button onClick={() => setView('dashboard')} className="p-2 hover:bg-[#F9F7F5] rounded-full transition-colors text-[#AC8A69]"><ChevronLeft /></button>}<span className="text-lg md:text-xl font-bold text-[#936142] tracking-tight whitespace-nowrap">Wed.Control</span></div>
+                <div className="hidden md:flex gap-1 bg-[#F9F7F5] p-1 rounded-xl">
+                    {['overview', 'tasks', 'budget', 'guests', 'timing', 'notes'].map(tab => (
+                        <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? 'bg-white text-[#936142] shadow-sm' : 'text-[#CCBBA9] hover:text-[#414942]'}`}>{tab === 'overview' ? 'Обзор' : tab === 'tasks' ? 'Задачи' : tab === 'budget' ? 'Смета' : tab === 'guests' ? 'Гости' : tab === 'timing' ? 'Тайминг' : 'Заметки'}</button>
+                    ))}
+                </div>
+                <div className="flex items-center gap-4"><div className="text-right hidden md:block"><p className="font-serif text-[#414942] font-medium text-sm md:text-base">{currentProject.groomName} & {currentProject.brideName}</p><p className="text-[10px] md:text-xs text-[#AC8A69]">{formatDate(currentProject.date)}</p></div>{user.role !== 'client' && <button onClick={() => setIsEditingProject(!isEditingProject)} className="p-2 text-[#AC8A69] hover:text-[#936142]"><Settings size={20} /></button>}<button onClick={handleLogout} className="p-2 text-[#AC8A69] hover:text-[#936142]"><LogOut size={20} /></button></div>
+            </div>
+            <div className="md:hidden overflow-x-auto whitespace-nowrap px-4 pb-2 pt-2 scrollbar-hide border-b border-[#EBE5E0] bg-white/50 backdrop-blur-sm print:hidden">
+                 {['overview', 'tasks', 'budget', 'guests', 'timing', 'notes'].map(tab => (<button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all inline-block mr-2 ${activeTab === tab ? 'bg-white text-[#936142] shadow-sm ring-1 ring-[#936142]/10' : 'text-[#CCBBA9]'}`}>{tab === 'overview' ? 'Обзор' : tab === 'tasks' ? 'Задачи' : tab === 'budget' ? 'Смета' : tab === 'guests' ? 'Гости' : tab === 'timing' ? 'Тайминг' : 'Заметки'}</button>))}
+            </div>
+         </nav>
+
+         {isEditingProject && user.role !== 'client' && (
+             <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4">
+                 <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl relative animate-slideUp flex flex-col max-h-[90vh]">
+                     <div className="p-6 border-b border-[#EBE5E0] flex justify-between items-center shrink-0"><h2 className="text-xl font-bold text-[#414942]">Настройки</h2><button onClick={() => setIsEditingProject(false)} className="text-[#AC8A69] hover:text-[#936142] p-1"><X size={24}/></button></div>
+                     <div className="p-6 overflow-y-auto">
+                        <div className="space-y-4">
+                            <div className="bg-[#F9F7F5] p-4 rounded-xl mb-4 border border-[#AC8A69]/20">
+                                <p className="text-[10px] text-[#AC8A69] uppercase font-bold mb-2">Доступ для клиента</p>
+                                <div className="flex gap-2 mb-2 items-center">
+                                    <input className="flex-1 bg-white border border-[#EBE5E0] rounded-lg p-2 text-sm text-[#AC8A69] overflow-hidden text-ellipsis" value={`${window.location.origin}?id=${currentProject.id}`} readOnly />
+                                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}?id=${currentProject.id}`); alert('Ссылка скопирована!'); }} className="bg-[#936142] text-white p-2 rounded-lg hover:bg-[#7D5238] transition-colors"><LinkIcon size={16}/></button>
+                                </div>
+                                <Input label="Пароль клиента" value={currentProject.clientPassword} onChange={(e) => updateProject('clientPassword', e.target.value)} />
+                            </div>
+                            <Input label="Жених" value={currentProject.groomName} onChange={(e) => updateProject('groomName', e.target.value)} />
+                            <Input label="Невеста" value={currentProject.brideName} onChange={(e) => updateProject('brideName', e.target.value)} />
+                            <Input label="Дата" type="date" value={currentProject.date} onChange={(e) => updateProject('date', e.target.value)} />
+                            <Input label="Гостей" type="number" value={currentProject.guestsCount} onChange={(e) => updateProject('guestsCount', e.target.value)} />
+                            <Input label="Локация" value={currentProject.venueName} onChange={(e) => updateProject('venueName', e.target.value)} />
+                            {user.role === 'owner' && <Input label="Организатор" value={currentProject.organizerName} onChange={(e) => updateProject('organizerName', e.target.value)} />}
+                        </div>
+                        <div className="flex flex-col gap-2 mt-8">
+                            <Button onClick={() => setIsEditingProject(false)} variant="primary" className="w-full">Сохранить</Button>
+                            <div className="flex gap-2"><Button onClick={toggleArchiveProject} variant="outline" className="flex-1"><Archive size={16}/> {currentProject.isArchived ? 'Вернуть' : 'В архив'}</Button><Button onClick={deleteProject} variant="danger" className="flex-1"><Trash2 size={16}/> Удалить</Button></div>
+                        </div>
+                     </div>
+                 </div>
+             </div>
+         )}
+
+         <main className="max-w-7xl mx-auto p-4 md:p-12 animate-fadeIn pb-24 print:p-0">
+            {activeTab === 'overview' && (
+                <div className="space-y-6 md:space-y-8 pb-10">
+                    <div className="relative rounded-[2rem] overflow-hidden bg-[#936142] text-white p-8 md:p-12 text-center md:text-left shadow-2xl shadow-[#936142]/30">
+                        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+                            <div><h1 className="text-3xl md:text-6xl font-serif mb-4">{currentProject.groomName} <span className="text-[#C58970]">&</span> {currentProject.brideName}</h1><div className="flex items-center justify-center md:justify-start gap-4 text-[#EBE5E0]"><MapPin size={18}/><span className="text-base md:text-lg tracking-wide">{currentProject.venueName || 'Локация не выбрана'}</span></div></div>
+                            <div className="text-center md:text-right"><div className="text-5xl md:text-8xl font-bold tracking-tighter leading-none">{daysLeft}</div><div className="text-[10px] md:text-sm uppercase tracking-[0.2em] opacity-80 mt-2">Дней до свадьбы</div></div>
+                        </div>
+                        <div className="absolute -top-20 -right-20 w-96 h-96 bg-[#AC8A69] rounded-full mix-blend-overlay opacity-50 blur-3xl"></div><div className="absolute -bottom-20 -left-20 w-80 h-80 bg-[#C58970] rounded-full mix-blend-overlay opacity-50 blur-3xl"></div>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                        <Card className="p-4 md:p-6 flex flex-col justify-between h-32 md:h-40" onClick={() => setActiveTab('tasks')}><CheckSquare className="text-[#936142] mb-2 md:mb-4" size={24} md:size={32}/><div><p className="text-2xl md:text-3xl font-bold text-[#414942]">{currentProject.tasks.filter(t => !t.done).length}</p><p className="text-[10px] md:text-xs text-[#AC8A69] uppercase mt-1">Активных задач</p></div></Card>
+                        <Card className="p-4 md:p-6 flex flex-col justify-between h-32 md:h-40" onClick={() => setActiveTab('budget')}><PieChart className="text-[#936142] mb-2 md:mb-4" size={24} md:size={32}/><div><p className="text-lg md:text-xl font-bold text-[#414942]">{Math.round((currentProject.expenses.reduce((a,b)=>a+Number(b.paid),0) / (currentProject.expenses.reduce((a,b)=>a+Number(b.fact),0) || 1)) * 100)}%</p><p className="text-[10px] md:text-xs text-[#AC8A69] uppercase mt-1">Бюджет оплачен</p></div></Card>
+                        <Card className="p-4 md:p-6 flex flex-col justify-between h-32 md:h-40" onClick={() => setActiveTab('guests')}><Users className="text-[#936142] mb-2 md:mb-4" size={24} md:size={32}/><div><p className="text-2xl md:text-3xl font-bold text-[#414942]">{currentProject.guests.length}</p><p className="text-[10px] md:text-xs text-[#AC8A69] uppercase mt-1">Гостей</p></div></Card>
+                        <Card className="p-4 md:p-6 flex flex-col justify-between h-32 md:h-40" onClick={() => setActiveTab('timing')}><Clock className="text-[#936142] mb-2 md:mb-4" size={24} md:size={32}/><div><p className="text-lg md:text-xl font-bold text-[#414942]">{currentProject.timing[0]?.time || '09:00'}</p><p className="text-[10px] md:text-xs text-[#AC8A69] uppercase mt-1">Начало дня</p></div></Card>
+                    </div>
+                    <div><h3 className="text-lg md:text-xl font-serif text-[#414942] mb-4 md:mb-6">Ближайшие дедлайны</h3><div className="grid gap-3 md:gap-4">{currentProject.tasks.filter(t => !t.done).sort((a,b) => new Date(a.deadline) - new Date(b.deadline)).slice(0, 3).map(task => (<div key={task.id} className="flex items-center justify-between p-4 md:p-5 bg-white rounded-2xl shadow-sm border border-[#EBE5E0]"><div className="flex items-center gap-4"><div className="w-1.5 md:w-2 h-10 md:h-12 bg-[#C58970] rounded-full"></div><div><p className="font-medium text-sm md:text-base text-[#414942]">{task.text}</p><p className="text-xs md:text-sm text-[#AC8A69]">{formatDate(task.deadline)}</p></div></div><Button variant="ghost" onClick={() => setActiveTab('tasks')} className="p-2"><ArrowRight size={18} md:size={20}/></Button></div>))}</div></div>
+                </div>
+            )}
+            {activeTab === 'tasks' && <TasksView tasks={currentProject.tasks} updateProject={updateProject} formatDate={formatDate} />}
+            {activeTab === 'budget' && <BudgetView expenses={currentProject.expenses} updateProject={updateProject} downloadCSV={downloadCSV} />}
+            {activeTab === 'guests' && <GuestsView guests={currentProject.guests} updateProject={updateProject} downloadCSV={downloadCSV} />}
+            {activeTab === 'timing' && <TimingView timing={currentProject.timing} updateProject={updateProject} downloadCSV={downloadCSV} />}
+            {activeTab === 'notes' && <NotesView notes={currentProject.notes} updateProject={updateProject} />}
+         </main>
       </div>
     );
   }
