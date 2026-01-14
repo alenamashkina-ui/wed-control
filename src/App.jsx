@@ -4,26 +4,29 @@ import {
   Plus, Trash2, Download, ChevronLeft, Heart, 
   MapPin, X, ArrowRight, CalendarDays, Menu, 
   FileText, FileSpreadsheet, File, PieChart, Settings, 
-  Archive, LogOut, Lock, User, Crown, Key, Loader2, Users as UsersIcon, Link as LinkIcon, Edit3, Save, XCircle, Shield
+  Archive, LogOut, Lock, User, Crown, Key, Loader2, 
+  Users as UsersIcon, Link as LinkIcon, Edit3, Save, XCircle, Shield,
+  Briefcase, Search, Filter, Camera, Music, Video, Home, Coffee, Scissors, Star, Building
 } from 'lucide-react';
 import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { 
   getFirestore, collection, addDoc, updateDoc, 
-  deleteDoc, doc, onSnapshot, query, where, getDocs 
+  deleteDoc, doc, onSnapshot, query, where 
 } from "firebase/firestore";
 
 // --- CONFIG ---
-const SITE_URL = 'https://wed-control.vercel.app'; 
+const SITE_URL = import.meta.env.VITE_SITE_URL || 'https://wed-control.vercel.app'; 
+const APP_TITLE = import.meta.env.VITE_APP_TITLE || 'Wed.Control';
 
 // --- FIREBASE SETUP ---
 const firebaseConfig = {
-    apiKey: "AIzaSyApHVEteylAoYqC2TSmJr0zk3LL5n8uep8",
-    authDomain: "wed-control.firebaseapp.com",
-    projectId: "wed-control",
-    storageBucket: "wed-control.firebasestorage.app",
-    messagingSenderId: "530816827426",
-    appId: "1:530816827426:web:522f7c323cecf599f38a7b"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 const app = initializeApp(firebaseConfig);
@@ -43,45 +46,30 @@ const COLORS = {
   bg: '#F9F7F5'
 };
 
+const VENDOR_CATEGORIES = [
+  { id: 'venue', label: 'Площадка', icon: Home },
+  { id: 'photo', label: 'Фотограф', icon: Camera },
+  { id: 'video', label: 'Видеограф', icon: Video },
+  { id: 'host', label: 'Ведущий', icon: Music },
+  { id: 'style', label: 'Стилист', icon: Scissors },
+  { id: 'decor', label: 'Декор', icon: Heart },
+  { id: 'food', label: 'Кондитеры', icon: Coffee },
+  { id: 'other', label: 'Другое', icon: Briefcase },
+];
+
 const INITIAL_EXPENSES = [
   { category: 'Декор', name: 'Декор и флористика', plan: 0, fact: 0, paid: 0, note: '' },
   { category: 'Площадка', name: 'Аренда мебели', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Полиграфия', name: 'Свадебная полиграфия', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Digital', name: 'Создание сайта', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Фото и Видео', name: 'Предсвадебная съемка', plan: 0, fact: 0, paid: 0, note: '' },
   { category: 'Фото и Видео', name: 'Фотограф', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Фото и Видео', name: 'Фотокнига', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Фото и Видео', name: 'Видеограф', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Фото и Видео', name: 'Монтаж SDE-ролика', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Фото и Видео', name: 'Мобильный видеомейкер', plan: 0, fact: 0, paid: 0, note: '' },
   { category: 'Программа', name: 'Ведущий + диджей', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Техническое обеспечение', name: 'Техническое обеспечение', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Техническое обеспечение', name: 'Спецэффекты', plan: 0, fact: 0, paid: 0, note: '' },
   { category: 'Образ', name: 'Стилист', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Образ', name: 'Стилист для гостей', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Программа', name: 'Кавер-группа', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Программа', name: 'Бытовой райдер артистов', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Логистика', name: 'Размещение иногородних гостей', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Программа', name: 'Постановка свадебного танца', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Логистика', name: 'Аренда автомобиля', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Логистика', name: 'Автобусы для гостей', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Логистика', name: 'Вечерняя развозка', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Детям', name: 'Аниматор для детей/няня', plan: 0, fact: 0, paid: 0, note: '' },
   { category: 'Банкет', name: 'Торт', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Банкет', name: 'Напитки', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Банкет', name: 'Комплименты для гостей', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Финал', name: 'Фейерверк', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Команда', name: 'Организация и координация свадьбы', plan: 0, fact: 0, paid: 0, note: '' },
-  { category: 'Банкет', name: 'Свадебный ужин', plan: 0, fact: 0, paid: 0, note: '' },
   { category: 'Прочее', name: 'Непредвиденные расходы', plan: 0, fact: 0, paid: 0, note: '' },
 ];
 
 const INITIAL_TIMING = [
   { time: '09:00', event: 'Пробуждение' },
-  { time: '09:30', event: 'Завтрак' },
   { time: '10:00', event: 'Приезд стилиста' },
-  { time: '11:00', event: 'Начало работы фотографа и видеооператора' },
-  { time: '12:30', event: 'Подача автомобиля' },
   { time: '13:00', event: 'Фотосессия' },
   { time: '16:00', event: 'Сбор гостей' },
   { time: '17:00', event: 'Начало ужина' },
@@ -91,49 +79,14 @@ const INITIAL_TIMING = [
 const TASK_TEMPLATES = [
   { text: 'Определить бюджет свадьбы', pos: 0.00 },
   { text: 'Составить список гостей', pos: 0.01 },
-  { text: 'Заполнить анкету', pos: 0.02 },
-  { text: 'Выбрать дату регистрации', pos: 0.03 },
-  { text: 'Выбрать день свадьбы', pos: 0.04 },
-  { text: 'Составить тайминг свадебного дня', pos: 0.05 },
-  { text: 'Подать заявления в ЗАГС', pos: 0.06 },
-  { text: 'Утвердить концепцию свадьбы', pos: 0.10 },
-  { text: 'Выбрать место проведения свадьбы', pos: 0.12 },
-  { text: 'Продумать план Б на случай непогоды', pos: 0.15 },
-  { text: 'Утвердить текст для приглашений', pos: 0.18 },
-  { text: 'Заказать приглашения', pos: 0.20 },
-  { text: 'Выбрать фотографа', pos: 0.22 },
-  { text: 'Выбрать видеооператора', pos: 0.22 },
+  { text: 'Выбрать дату и ЗАГС', pos: 0.03 },
+  { text: 'Выбрать площадку', pos: 0.12 },
+  { text: 'Выбрать фотографа и видео', pos: 0.22 },
   { text: 'Выбрать ведущего', pos: 0.23 },
   { text: 'Выбрать стилиста', pos: 0.25 },
-  { text: 'Запланировать репетицию образа', pos: 0.26 },
-  { text: 'Выбрать стилиста для мам и подружек', pos: 0.27 },
-  { text: 'Забронировать автомобиль с водителем', pos: 0.30 },
-  { text: 'Выбрать артистов для шоу-программы', pos: 0.32 },
-  { text: 'Выбрать студию декора', pos: 0.35 },
-  { text: 'Утвердить стилистику и цветовую палитру свадьбы', pos: 0.36 },
-  { text: 'Утвердить с декоратором смету по декору', pos: 0.40 },
-  { text: 'Утвердить маршрут и локации для фотосессии', pos: 0.42 },
-  { text: 'Заказать звуковое, световое, видеооборудование и спецэффекты', pos: 0.45 },
-  { text: 'Заказать комплименты для гостей', pos: 0.50 },
-  { text: 'Утвердить меню', pos: 0.55 },
-  { text: 'Утвердить программу с ведущим', pos: 0.56 },
-  { text: 'Купить свадебное платье', pos: 0.60 },
-  { text: 'Купить костюм для жениха', pos: 0.61 },
-  { text: 'Купить обручальные кольца', pos: 0.62 },
-  { text: 'Выбрать парфюм для свадьбы', pos: 0.65 },
-  { text: 'Выбрать кондитера, утвердить дизайн и начинки для свадебного торта', pos: 0.70 },
-  { text: 'Заказать напитки', pos: 0.72 },
-  { text: 'Организовать девичник', pos: 0.75 },
-  { text: 'Организовать мальчишник', pos: 0.75 },
-  { text: 'Продумать образы на сборы в день свадьбы', pos: 0.80 },
-  { text: 'Выбрать школу танцев, музыкальную композицию и разучить свадебный танец', pos: 0.82 },
-  { text: 'Провести опрос гостей (присутствие, еда, автобус)', pos: 0.85 },
-  { text: 'Забронировать отель для приезжих гостей', pos: 0.88 },
-  { text: 'Забронировать автобусы для гостей', pos: 0.89 },
-  { text: 'Забронировать автобус для вечерней развозки гостей', pos: 0.90 },
-  { text: 'Составить план рассадки гостей', pos: 0.92 },
-  { text: 'Заказать питание для команды', pos: 0.93 },
-  { text: 'Составить плейлист для ди-джея', pos: 0.95 },
+  { text: 'Декор и флористика', pos: 0.35 },
+  { text: 'Торт', pos: 0.70 },
+  { text: 'Транспорт', pos: 0.89 },
 ];
 
 const INITIAL_FORM_STATE = {
@@ -149,7 +102,7 @@ const INITIAL_FORM_STATE = {
   clientPassword: ''
 };
 
-// --- UTILS ---
+// --- UTILS & COMPONENTS ---
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
@@ -168,13 +121,12 @@ const getDaysUntil = (dateStr) => {
 };
 
 const formatCurrency = (val) => {
-  if (val === undefined || val === null) return '0';
+  if (val === undefined || val === null || val === '') return '0';
   return new Intl.NumberFormat('ru-RU', { style: 'decimal', maximumFractionDigits: 0 }).format(val);
 };
 
 const downloadCSV = (data, filename) => {
-  const csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
-    + data.map(e => e.join(";")).join("\n");
+  const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + data.map(e => e.join(";")).join("\n");
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement("a");
   link.setAttribute("href", encodedUri);
@@ -184,13 +136,8 @@ const downloadCSV = (data, filename) => {
   document.body.removeChild(link);
 };
 
-// --- UI COMPONENTS ---
-
 const Card = ({ children, className = "", onClick }) => (
-  <div 
-    onClick={onClick}
-    className={`bg-white rounded-2xl shadow-sm border border-[#EBE5E0] ${className} ${onClick ? 'cursor-pointer hover:border-[#AC8A69] hover:shadow-md transition-all active:scale-[0.99]' : ''}`}
-  >
+  <div onClick={onClick} className={`bg-white rounded-2xl shadow-sm border border-[#EBE5E0] ${className} ${onClick ? 'cursor-pointer hover:border-[#AC8A69] hover:shadow-md transition-all active:scale-[0.99]' : ''}`}>
     {children}
   </div>
 );
@@ -204,22 +151,13 @@ const Button = ({ children, onClick, variant = 'primary', className = "", disabl
     ghost: `text-[${COLORS.primary}] hover:bg-[${COLORS.secondary}]/10`,
     danger: `bg-red-50 text-red-600 hover:bg-red-100`
   };
-   
-  return (
-    <button onClick={onClick} disabled={disabled} className={`${baseStyle} ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed transform-none' : ''}`} {...props}>
-      {children}
-    </button>
-  );
+  return <button onClick={onClick} disabled={disabled} className={`${baseStyle} ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed transform-none' : ''}`} {...props}>{children}</button>;
 };
 
 const Input = ({ label, onKeyDown, ...props }) => (
   <div className="mb-4">
     {label && <label className="block text-xs font-semibold text-[#AC8A69] uppercase tracking-wider mb-2 ml-1">{label}</label>}
-    <input 
-      onKeyDown={onKeyDown}
-      className="w-full bg-[#F9F7F5] border-none rounded-xl p-4 text-[#414942] placeholder-[#CCBBA9] focus:ring-2 focus:ring-[#936142]/20 transition-all outline-none"
-      {...props}
-    />
+    <input onKeyDown={onKeyDown} className="w-full bg-[#F9F7F5] border-none rounded-xl p-4 text-[#414942] placeholder-[#CCBBA9] focus:ring-2 focus:ring-[#936142]/20 transition-all outline-none" {...props} />
   </div>
 );
 
@@ -231,60 +169,22 @@ const MoneyInput = ({ value, onChange, className }) => {
     if (rawValue === '') onChange(0);
     else if (!isNaN(rawValue)) onChange(parseInt(rawValue, 10));
   };
-  return (
-    <input
-      type="text"
-      className={`${className} outline-none bg-transparent`}
-      value={displayValue}
-      onChange={handleChange}
-      onFocus={() => setIsFocused(true)}
-      onBlur={() => setIsFocused(false)}
-      placeholder="0"
-    />
-  );
+  return <input type="text" className={`${className} outline-none bg-transparent`} value={displayValue} onChange={handleChange} onFocus={() => setIsFocused(true)} onBlur={() => setIsFocused(false)} placeholder="0" />;
 };
 
 const AutoHeightTextarea = ({ value, onChange, className, placeholder }) => {
   const textareaRef = useRef(null);
-
   const adjustHeight = useCallback(() => {
     const el = textareaRef.current;
-    if (el) {
-      el.style.height = 'auto';
-      el.style.height = el.scrollHeight + 'px';
-    }
+    if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
   }, []);
-
-  useEffect(() => {
-    adjustHeight();
-  }, [value, adjustHeight]);
-
-  // Adjust on mount with a small delay to ensure rendering
-  useEffect(() => {
-     adjustHeight();
-     const timer = setTimeout(adjustHeight, 10);
-     return () => clearTimeout(timer);
-  }, [adjustHeight]);
-
-  return (
-    <textarea
-      ref={textareaRef}
-      className={`${className} resize-none overflow-hidden block`}
-      value={value}
-      onChange={(e) => {
-          onChange(e);
-      }}
-      rows={1}
-      placeholder={placeholder}
-    />
-  );
+  useEffect(() => { adjustHeight(); }, [value, adjustHeight]);
+  useEffect(() => { adjustHeight(); const timer = setTimeout(adjustHeight, 10); return () => clearTimeout(timer); }, [adjustHeight]);
+  return <textarea ref={textareaRef} className={`${className} resize-none overflow-hidden block`} value={value} onChange={onChange} rows={1} placeholder={placeholder} />;
 };
 
 const Checkbox = ({ checked, onChange }) => (
-  <div 
-    onClick={(e) => { e.stopPropagation(); onChange(!checked); }}
-    className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center cursor-pointer transition-colors duration-300 flex-shrink-0 print:border-[#414942] ${checked ? `bg-[${COLORS.primary}] border-[${COLORS.primary}] print:bg-[#414942]` : `border-[${COLORS.neutral}] bg-transparent`}`}
-  >
+  <div onClick={(e) => { e.stopPropagation(); onChange(!checked); }} className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center cursor-pointer transition-colors duration-300 flex-shrink-0 print:border-[#414942] ${checked ? `bg-[${COLORS.primary}] border-[${COLORS.primary}] print:bg-[#414942]` : `border-[${COLORS.neutral}] bg-transparent`}`}>
     {checked && <CheckSquare size={14} color="white" />}
   </div>
 );
@@ -293,80 +193,149 @@ const DownloadMenu = ({ onSelect }) => {
   const [isOpen, setIsOpen] = useState(false);
   return (
     <div className="relative print:hidden">
-      <Button variant="outline" onClick={() => setIsOpen(!isOpen)}>
-        <Download size={18} />
-      </Button>
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-xl border border-[#EBE5E0] z-20 w-48 overflow-hidden animate-fadeIn">
-            {['excel', 'csv', 'pdf'].map(type => (
-              <button key={type} onClick={() => { onSelect(type); setIsOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-[#F9F7F5] text-[#414942] text-sm font-medium flex items-center gap-3 transition-colors uppercase">
-                {type}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+      <Button variant="outline" onClick={() => setIsOpen(!isOpen)}><Download size={18} /></Button>
+      {isOpen && (<><div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} /><div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-xl border border-[#EBE5E0] z-20 w-48 overflow-hidden animate-fadeIn">{['excel', 'csv', 'pdf'].map(type => (<button key={type} onClick={() => { onSelect(type); setIsOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-[#F9F7F5] text-[#414942] text-sm font-medium flex items-center gap-3 transition-colors uppercase">{type}</button>))}</div></>)}
     </div>
   );
 };
 
-// --- SUB-VIEWS ---
+// --- NEW VENDORS DB VIEW ---
+
+const VendorsView = ({ agencyId }) => {
+    const [vendors, setVendors] = useState([]);
+    const [showAdd, setShowAdd] = useState(false);
+    const [filterCat, setFilterCat] = useState('all');
+    
+    // Form State
+    const [editingId, setEditingId] = useState(null);
+    const [vName, setVName] = useState('');
+    const [vCat, setVCat] = useState('photo');
+    const [vCustomCat, setVCustomCat] = useState('');
+    const [vPrice, setVPrice] = useState('');
+    const [vLink, setVLink] = useState('');
+    const [vPhoto, setVPhoto] = useState('');
+    const [vDesc, setVDesc] = useState('');
+
+    useEffect(() => {
+        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'vendors'), where('agencyId', '==', agencyId));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            setVendors(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+        return () => unsubscribe();
+    }, [agencyId]);
+
+    const handleSave = async () => {
+        if (!vName) return;
+        const categoryToSave = vCat === 'custom' ? vCustomCat : vCat;
+        const data = {
+            name: vName, category: categoryToSave, price: vPrice, link: vLink, photo: vPhoto, description: vDesc, agencyId: agencyId
+        };
+        if (editingId) {
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'vendors', editingId), data);
+        } else {
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'vendors'), { ...data, createdAt: new Date().toISOString() });
+        }
+        resetForm();
+    };
+
+    const handleEdit = (vendor) => {
+        setEditingId(vendor.id);
+        setVName(vendor.name);
+        setVPrice(vendor.price);
+        setVLink(vendor.link);
+        setVPhoto(vendor.photo);
+        setVDesc(vendor.description);
+        const isStandard = VENDOR_CATEGORIES.some(c => c.id === vendor.category);
+        if (isStandard) { setVCat(vendor.category); setVCustomCat(''); } else { setVCat(vendor.category); setVCustomCat(''); }
+        setShowAdd(true);
+        window.scrollTo(0,0);
+    };
+
+    const handleDelete = async (id) => {
+        if (confirm('Удалить из базы?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'vendors', id));
+    };
+
+    const resetForm = () => {
+        setEditingId(null); setVName(''); setVPrice(''); setVLink(''); setVPhoto(''); setVDesc(''); setVCat('photo'); setVCustomCat(''); setShowAdd(false);
+    }
+
+    const customCategoriesFromDB = vendors.map(v => v.category).filter(c => !VENDOR_CATEGORIES.some(vc => vc.id === c)).filter((value, index, self) => self.indexOf(value) === index);
+    const allFilterCategories = [...VENDOR_CATEGORIES, ...customCategoriesFromDB.map(c => ({ id: c, label: c, icon: Star }))];
+    const filteredVendors = filterCat === 'all' ? vendors : vendors.filter(v => v.category === filterCat);
+
+    return (
+        <div className="p-6 md:p-12 max-w-7xl mx-auto min-h-screen">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                <h1 className="text-3xl font-bold text-[#414942]">База подрядчиков</h1>
+                <Button onClick={() => { if(showAdd) resetForm(); else setShowAdd(true); }}>{showAdd ? 'Отмена' : 'Добавить профиль'}</Button>
+            </div>
+            {showAdd && (
+                <div className="bg-white p-6 rounded-2xl shadow-xl border border-[#AC8A69]/20 mb-8 animate-slideUp">
+                    <h3 className="font-bold text-[#936142] mb-6">{editingId ? 'Редактирование' : 'Новый подрядчик'}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                            <div><label className="text-xs font-bold text-[#AC8A69] uppercase ml-1">Категория</label>
+                            <select className="w-full bg-[#F9F7F5] rounded-xl p-4 outline-none mb-2" value={vCat} onChange={e => setVCat(e.target.value)}>
+                                {VENDOR_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                                {customCategoriesFromDB.map(c => (<option key={c} value={c}>{c}</option>))}
+                                <option value="custom">+ Своя категория...</option>
+                            </select>
+                            {vCat === 'custom' && (<input className="w-full bg-[#F9F7F5] rounded-xl p-4 outline-none border-2 border-[#AC8A69]/20" placeholder="Название категории" value={vCustomCat} onChange={e => setVCustomCat(e.target.value)} />)}</div>
+                            <Input label="Название / Имя" value={vName} onChange={e => setVName(e.target.value)} placeholder="Иван Иванов" />
+                            <Input label="Стоимость (от)" value={vPrice} onChange={e => setVPrice(e.target.value)} placeholder="50 000" />
+                        </div>
+                        <div className="space-y-4">
+                            <Input label="Ссылка" value={vLink} onChange={e => setVLink(e.target.value)} placeholder="instagram.com/..." />
+                            <Input label="Ссылка на фото (URL)" value={vPhoto} onChange={e => setVPhoto(e.target.value)} placeholder="https://..." />
+                            <div><label className="text-xs font-bold text-[#AC8A69] uppercase ml-1">Описание / Условия</label><textarea className="w-full bg-[#F9F7F5] rounded-xl p-4 outline-none min-h-[100px]" value={vDesc} onChange={e => setVDesc(e.target.value)} placeholder="Детали работы..." /></div>
+                        </div>
+                    </div>
+                    <Button onClick={handleSave} className="mt-4 w-full">{editingId ? 'Сохранить изменения' : 'Сохранить в базу'}</Button>
+                </div>
+            )}
+            <div className="flex gap-2 overflow-x-auto pb-4 mb-6 scrollbar-hide">
+                <button onClick={() => setFilterCat('all')} className={`px-4 py-2 rounded-full whitespace-nowrap transition-colors ${filterCat === 'all' ? 'bg-[#414942] text-white' : 'bg-white text-[#414942] border border-[#EBE5E0]'}`}>Все</button>
+                {allFilterCategories.map(c => (<button key={c.id} onClick={() => setFilterCat(c.id)} className={`px-4 py-2 rounded-full whitespace-nowrap transition-colors flex items-center gap-2 ${filterCat === c.id ? 'bg-[#936142] text-white' : 'bg-white text-[#414942] border border-[#EBE5E0]'}`}><c.icon size={14}/> {c.label}</button>))}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {filteredVendors.map(v => (
+                    <div key={v.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all border border-[#EBE5E0] group relative">
+                        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                            <button onClick={() => handleEdit(v)} className="bg-white/90 p-2 rounded-full text-[#414942] hover:text-[#936142] hover:bg-white shadow-sm"><Edit3 size={16}/></button>
+                            <button onClick={() => handleDelete(v.id)} className="bg-white/90 p-2 rounded-full text-red-300 hover:text-red-500 hover:bg-white shadow-sm"><Trash2 size={16}/></button>
+                        </div>
+                        <div className="aspect-square bg-[#F9F7F5] relative overflow-hidden">
+                            {v.photo ? (<img src={v.photo} alt={v.name} className="w-full h-full object-cover" />) : (<div className="w-full h-full flex items-center justify-center text-[#CCBBA9]/50"><Heart size={48} className="text-[#CCBBA9] opacity-50"/></div>)}
+                            <div className="absolute bottom-2 left-2 bg-white/90 px-3 py-1 rounded-lg text-xs font-bold text-[#414942] shadow-sm">{allFilterCategories.find(c => c.id === v.category)?.label || v.category}</div>
+                        </div>
+                        <div className="p-4">
+                            <h3 className="font-bold text-[#414942] text-lg mb-1 truncate">{v.name}</h3>
+                            <p className="text-[#936142] font-medium mb-3">{v.price ? `${formatCurrency(v.price)} ₽` : 'Цена по запросу'}</p>
+                            <p className="text-sm text-[#AC8A69] line-clamp-2 mb-4 h-10">{v.description}</p>
+                            {v.link && (<a href={v.link.startsWith('http') ? v.link : `https://${v.link}`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full py-2 rounded-xl bg-[#F9F7F5] text-[#414942] text-sm hover:bg-[#EBE5E0] transition-colors font-medium">Ссылка <LinkIcon size={14}/></a>)}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// --- SUB-VIEWS (Tasks, Budget, etc) --- 
+// (I'm keeping these standard as they are just UI components)
 
 const TasksView = ({ tasks, updateProject, formatDate }) => {
-  const sortTasks = (taskList) => [...taskList].sort((a, b) => {
-    if (a.done !== b.done) return a.done ? 1 : -1;
-    return new Date(a.deadline) - new Date(b.deadline);
-  });
-
-  const updateTask = (id, field, value) => {
-    const newTasks = tasks.map(t => t.id === id ? { ...t, [field]: value } : t);
-    updateProject('tasks', field === 'done' ? sortTasks(newTasks) : newTasks);
-  };
-
+  const sortTasks = (taskList) => [...taskList].sort((a, b) => { if (a.done !== b.done) return a.done ? 1 : -1; return new Date(a.deadline) - new Date(b.deadline); });
+  const updateTask = (id, field, value) => { const newTasks = tasks.map(t => t.id === id ? { ...t, [field]: value } : t); updateProject('tasks', field === 'done' ? sortTasks(newTasks) : newTasks); };
   const handleBlurSort = () => updateProject('tasks', sortTasks(tasks));
-
-  const addTask = () => {
-    const newTask = { id: Math.random().toString(36).substr(2, 9), text: 'Новая задача', deadline: new Date().toISOString(), done: false };
-    updateProject('tasks', sortTasks([...tasks, newTask]));
-  };
-
+  const addTask = () => { const newTask = { id: Math.random().toString(36).substr(2, 9), text: 'Новая задача', deadline: new Date().toISOString(), done: false }; updateProject('tasks', sortTasks([...tasks, newTask])); };
   const deleteTask = (id) => updateProject('tasks', tasks.filter(t => t.id !== id));
-
-  const handleExport = (type) => {
-    if (type === 'pdf') window.print();
-    else downloadCSV([["Задача", "Дедлайн", "Статус"], ...tasks.map(t => [t.text, formatDate(t.deadline), t.done ? "Выполнено" : "В работе"])], "tasks.csv");
-  };
-
+  const handleExport = (type) => { if (type === 'pdf') window.print(); else downloadCSV([["Задача", "Дедлайн", "Статус"], ...tasks.map(t => [t.text, formatDate(t.deadline), t.done ? "Выполнено" : "В работе"])], "tasks.csv"); };
   return (
     <div className="space-y-6 animate-fadeIn pb-24 md:pb-0">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 print:hidden">
-        <h2 className="text-2xl font-serif text-[#414942]">Список задач</h2>
-        <div className="flex gap-2 w-full md:w-auto">
-           <Button variant="primary" onClick={addTask} className="flex-1 md:flex-none"><Plus size={18}/> Добавить</Button>
-           <DownloadMenu onSelect={handleExport} />
-        </div>
-      </div>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 print:hidden"><h2 className="text-2xl font-serif text-[#414942]">Список задач</h2><div className="flex gap-2 w-full md:w-auto"><Button variant="primary" onClick={addTask} className="flex-1 md:flex-none"><Plus size={18}/> Добавить</Button><DownloadMenu onSelect={handleExport} /></div></div>
       <div className="hidden print:block mb-8"><h1 className="text-3xl font-serif text-[#414942] mb-2">Список задач</h1></div>
-      <div className="grid gap-4">
-        {tasks.map((task) => (
-            <div key={task.id} className={`group flex flex-col md:flex-row md:items-start p-4 bg-white rounded-xl border transition-all hover:shadow-md gap-4 print:shadow-none print:border-b print:border-t-0 print:border-x-0 print:rounded-none print:p-2 ${task.done ? 'opacity-50 border-transparent' : 'border-[#EBE5E0]'}`}>
-              <div className="flex items-start flex-1 gap-4 pt-1">
-                <Checkbox checked={task.done} onChange={(checked) => updateTask(task.id, 'done', checked)} />
-                <div className="flex-1 min-w-0">
-                  <textarea className={`w-full font-medium text-base md:text-lg bg-transparent outline-none resize-none overflow-hidden h-auto ${task.done ? 'line-through text-[#CCBBA9]' : 'text-[#414942]'}`} value={task.text} rows={1} style={{ minHeight: '28px', height: 'auto' }} onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} onChange={(e) => updateTask(task.id, 'text', e.target.value)} />
-                </div>
-              </div>
-              <div className="flex items-center justify-between md:justify-end gap-4 pl-10 md:pl-0 w-full md:w-auto pt-1">
-                <div className="flex items-center gap-2 text-[#AC8A69] bg-[#F9F7F5] px-3 py-1.5 rounded-lg w-full md:w-[160px] print:bg-transparent print:p-0 print:w-auto">
-                    <CalendarDays size={14} className="print:hidden"/><input type="date" className={`bg-transparent outline-none text-sm w-full cursor-pointer print:text-right ${new Date(task.deadline) < new Date() && !task.done ? 'text-red-400 font-bold' : ''}`} value={toInputDate(task.deadline)} onChange={(e) => updateTask(task.id, 'deadline', e.target.value ? new Date(e.target.value).toISOString() : task.deadline)} onBlur={handleBlurSort} />
-                </div>
-                <button onClick={() => deleteTask(task.id)} className="text-[#CCBBA9] hover:text-red-400 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-2 print:hidden"><Trash2 size={18} /></button>
-              </div>
-            </div>
-        ))}
-      </div>
+      <div className="grid gap-4">{tasks.map((task) => (<div key={task.id} className={`group flex flex-col md:flex-row md:items-start p-4 bg-white rounded-xl border transition-all hover:shadow-md gap-4 print:shadow-none print:border-b print:border-t-0 print:border-x-0 print:rounded-none print:p-2 ${task.done ? 'opacity-50 border-transparent' : 'border-[#EBE5E0]'}`}><div className="flex items-start flex-1 gap-4 pt-1"><Checkbox checked={task.done} onChange={(checked) => updateTask(task.id, 'done', checked)} /><div className="flex-1 min-w-0"><textarea className={`w-full font-medium text-base md:text-lg bg-transparent outline-none resize-none overflow-hidden h-auto ${task.done ? 'line-through text-[#CCBBA9]' : 'text-[#414942]'}`} value={task.text} rows={1} style={{ minHeight: '28px', height: 'auto' }} onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} onChange={(e) => updateTask(task.id, 'text', e.target.value)} /></div></div><div className="flex items-center justify-between md:justify-end gap-4 pl-10 md:pl-0 w-full md:w-auto pt-1"><div className="flex items-center gap-2 text-[#AC8A69] bg-[#F9F7F5] px-3 py-1.5 rounded-lg w-full md:w-[160px] print:bg-transparent print:p-0 print:w-auto"><CalendarDays size={14} className="print:hidden"/><input type="date" className={`bg-transparent outline-none text-sm w-full cursor-pointer print:text-right ${new Date(task.deadline) < new Date() && !task.done ? 'text-red-400 font-bold' : ''}`} value={toInputDate(task.deadline)} onChange={(e) => updateTask(task.id, 'deadline', e.target.value ? new Date(e.target.value).toISOString() : task.deadline)} onBlur={handleBlurSort} /></div><button onClick={() => deleteTask(task.id)} className="text-[#CCBBA9] hover:text-red-400 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-2 print:hidden"><Trash2 size={18} /></button></div></div>))}</div>
     </div>
   );
 };
@@ -376,52 +345,12 @@ const BudgetView = ({ expenses, updateProject, downloadCSV }) => {
   const updateExpense = (index, field, val) => { const newExpenses = [...expenses]; newExpenses[index][field] = val; updateProject('expenses', newExpenses); };
   const addExpense = () => updateProject('expenses', [...expenses, { category: 'Новое', name: 'Новая статья', plan: 0, fact: 0, paid: 0, note: '' }]);
   const removeExpense = (index) => { const newExpenses = [...expenses]; newExpenses.splice(index, 1); updateProject('expenses', newExpenses); };
-  const handleExport = (type) => {
-    if (type === 'pdf') window.print();
-    else downloadCSV([["Наименование", "План", "Факт", "Внесено", "Остаток", "Комментарий"], ...expenses.map(e => [e.name, e.plan, e.fact, e.paid, e.fact - e.paid, e.note || '']), ["ИТОГО", totals.plan, totals.fact, totals.paid, totals.fact - totals.paid, ""]], "budget.csv");
-  };
-
+  const handleExport = (type) => { if (type === 'pdf') window.print(); else downloadCSV([["Наименование", "План", "Факт", "Внесено", "Остаток", "Комментарий"], ...expenses.map(e => [e.name, e.plan, e.fact, e.paid, e.fact - e.paid, e.note || '']), ["ИТОГО", totals.plan, totals.fact, totals.paid, totals.fact - totals.paid, ""]], "budget.csv"); };
   return (
     <div className="animate-fadeIn pb-24 md:pb-0">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 print:hidden">
-        {['План', 'Факт', 'Внесено', 'Остаток'].map((label, i) => (
-            <Card key={label} className={`p-4 md:p-6 text-center ${i===3 ? 'bg-[#414942] text-white' : ''}`}>
-                <p className={`${i===3 ? 'text-white/60' : 'text-[#AC8A69]'} text-[10px] md:text-xs uppercase tracking-widest mb-2`}>{label}</p>
-                <p className={`text-lg md:text-2xl font-medium ${i===3 ? 'text-white' : i===2 ? 'text-[#936142]' : 'text-[#414942]'}`}>
-                    {formatCurrency(i===0?totals.plan:i===1?totals.fact:i===2?totals.paid:totals.fact-totals.paid)}
-                </p>
-            </Card>
-        ))}
-      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 print:hidden">{['План', 'Факт', 'Внесено', 'Остаток'].map((label, i) => (<Card key={label} className={`p-4 md:p-6 text-center ${i===3 ? 'bg-[#414942] text-white' : ''}`}><p className={`${i===3 ? 'text-white/60' : 'text-[#AC8A69]'} text-[10px] md:text-xs uppercase tracking-widest mb-2`}>{label}</p><p className={`text-lg md:text-2xl font-medium ${i===3 ? 'text-white' : i===2 ? 'text-[#936142]' : 'text-[#414942]'}`}>{formatCurrency(i===0?totals.plan:i===1?totals.fact:i===2?totals.paid:totals.fact-totals.paid)}</p></Card>))}</div>
       <div className="hidden print:block mb-8"><h1 className="text-3xl font-serif text-[#414942] mb-2">Смета проекта</h1><div className="flex justify-between border-b pb-2 border-[#AC8A69]"><p>План: {formatCurrency(totals.plan)}</p><p>Факт: {formatCurrency(totals.fact)}</p><p>Внесено: {formatCurrency(totals.paid)}</p></div></div>
-      <div className="bg-white rounded-2xl shadow-sm border border-[#EBE5E0] overflow-hidden print:shadow-none print:border-none">
-          <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[1000px] print:min-w-0">
-                  <thead><tr className="bg-[#F9F7F5] text-[#936142] text-xs md:text-sm uppercase tracking-wider print:bg-transparent print:border-b print:border-[#414942]">
-                      <th className="p-2 md:p-4 font-semibold w-[200px] min-w-[200px]">Статья</th>
-                      <th className="p-2 md:p-4 font-semibold w-[120px] min-w-[120px]">План</th>
-                      <th className="p-2 md:p-4 font-semibold w-[120px] min-w-[120px]">Факт</th>
-                      <th className="p-2 md:p-4 font-semibold w-[120px] min-w-[120px]">Внесено</th>
-                      <th className="p-2 md:p-4 font-semibold w-[120px] min-w-[120px]">Остаток</th>
-                      <th className="p-2 md:p-4 font-semibold w-[200px] min-w-[200px]">Комментарии</th>
-                      <th className="p-2 md:p-4 font-semibold w-10 print:hidden"></th>
-                  </tr></thead>
-                  <tbody className="divide-y divide-[#EBE5E0] print:divide-[#CCBBA9]">
-                  {expenses.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-[#F9F7F5]/50 group print:break-inside-avoid">
-                      <td className="p-2 md:p-4 align-top"><AutoHeightTextarea className="w-full bg-transparent outline-none font-medium text-[#414942] text-sm md:text-base whitespace-normal min-h-[1.5rem]" value={item.name} onChange={(e) => updateExpense(idx, 'name', e.target.value)} /></td>
-                      <td className="p-2 md:p-4 align-top"><MoneyInput value={item.plan} onChange={(val) => updateExpense(idx, 'plan', val)} className="w-full text-[#414942] text-sm md:text-base" /></td>
-                      <td className="p-2 md:p-4 align-top"><MoneyInput value={item.fact} onChange={(val) => updateExpense(idx, 'fact', val)} className="w-full text-[#414942] text-sm md:text-base" /></td>
-                      <td className="p-2 md:p-4 align-top"><MoneyInput value={item.paid} onChange={(val) => updateExpense(idx, 'paid', val)} className="w-full text-[#414942] text-sm md:text-base" /></td>
-                      <td className="p-2 md:p-4 align-top text-[#AC8A69] text-sm md:text-base">{formatCurrency(item.fact - item.paid)}</td>
-                      <td className="p-2 md:p-4 align-top"><AutoHeightTextarea className="w-full bg-transparent outline-none text-xs text-[#AC8A69] placeholder-[#CCBBA9] min-h-[1.5rem]" placeholder="..." value={item.note || ''} onChange={(e) => updateExpense(idx, 'note', e.target.value)} /></td>
-                      <td className="p-2 md:p-4 align-top print:hidden"><button onClick={() => removeExpense(idx)} className="text-red-300 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button></td>
-                      </tr>
-                  ))}
-                  </tbody>
-              </table>
-          </div>
-      </div>
+      <div className="bg-white rounded-2xl shadow-sm border border-[#EBE5E0] overflow-hidden print:shadow-none print:border-none"><div className="overflow-x-auto"><table className="w-full text-left border-collapse min-w-[1000px] print:min-w-0"><thead><tr className="bg-[#F9F7F5] text-[#936142] text-xs md:text-sm uppercase tracking-wider print:bg-transparent print:border-b print:border-[#414942]"><th className="p-2 md:p-4 font-semibold w-[200px] min-w-[200px]">Статья</th><th className="p-2 md:p-4 font-semibold w-[120px] min-w-[120px]">План</th><th className="p-2 md:p-4 font-semibold w-[120px] min-w-[120px]">Факт</th><th className="p-2 md:p-4 font-semibold w-[120px] min-w-[120px]">Внесено</th><th className="p-2 md:p-4 font-semibold w-[120px] min-w-[120px]">Остаток</th><th className="p-2 md:p-4 font-semibold w-[200px] min-w-[200px]">Комментарии</th><th className="p-2 md:p-4 font-semibold w-10 print:hidden"></th></tr></thead><tbody className="divide-y divide-[#EBE5E0] print:divide-[#CCBBA9]">{expenses.map((item, idx) => (<tr key={idx} className="hover:bg-[#F9F7F5]/50 group print:break-inside-avoid"><td className="p-2 md:p-4 align-top"><AutoHeightTextarea className="w-full bg-transparent outline-none font-medium text-[#414942] text-sm md:text-base whitespace-normal min-h-[1.5rem]" value={item.name} onChange={(e) => updateExpense(idx, 'name', e.target.value)} /></td><td className="p-2 md:p-4 align-top"><MoneyInput value={item.plan} onChange={(val) => updateExpense(idx, 'plan', val)} className="w-full text-[#414942] text-sm md:text-base" /></td><td className="p-2 md:p-4 align-top"><MoneyInput value={item.fact} onChange={(val) => updateExpense(idx, 'fact', val)} className="w-full text-[#414942] text-sm md:text-base" /></td><td className="p-2 md:p-4 align-top"><MoneyInput value={item.paid} onChange={(val) => updateExpense(idx, 'paid', val)} className="w-full text-[#414942] text-sm md:text-base" /></td><td className="p-2 md:p-4 align-top text-[#AC8A69] text-sm md:text-base">{formatCurrency(item.fact - item.paid)}</td><td className="p-2 md:p-4 align-top"><AutoHeightTextarea className="w-full bg-transparent outline-none text-xs text-[#AC8A69] placeholder-[#CCBBA9] min-h-[1.5rem]" placeholder="..." value={item.note || ''} onChange={(e) => updateExpense(idx, 'note', e.target.value)} /></td><td className="p-2 md:p-4 align-top print:hidden"><button onClick={() => removeExpense(idx)} className="text-red-300 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button></td></tr>))}</tbody></table></div></div>
       <div className="flex items-center gap-2 mt-6 print:hidden"><Button onClick={addExpense} variant="primary"><Plus size={18}/> Добавить статью</Button><DownloadMenu onSelect={handleExport} /></div>
     </div>
   );
@@ -431,39 +360,13 @@ const GuestsView = ({ guests, updateProject, downloadCSV }) => {
   const addGuest = () => updateProject('guests', [...guests, { id: Date.now(), name: '', comment: '', seatingName: '', table: '', food: '', drinks: '', transfer: false }]);
   const updateGuest = (id, field, val) => updateProject('guests', guests.map(g => g.id === id ? { ...g, [field]: val } : g));
   const removeGuest = (id) => updateProject('guests', guests.filter(g => g.id !== id));
-  const handleExport = (type) => {
-    if (type === 'pdf') window.print();
-    else downloadCSV([["ФИО", "Рассадка", "Стол", "Еда", "Напитки", "Трансфер", "Комментарий"], ...guests.map(g => [g.name, g.seatingName, g.table, g.food, g.drinks, g.transfer ? "Да" : "Нет", g.comment])], "guests.csv");
-  };
-
+  const handleExport = (type) => { if (type === 'pdf') window.print(); else downloadCSV([["ФИО", "Рассадка", "Стол", "Еда", "Напитки", "Трансфер", "Комментарий"], ...guests.map(g => [g.name, g.seatingName, g.table, g.food, g.drinks, g.transfer ? "Да" : "Нет", g.comment])], "guests.csv"); };
   return (
       <div className="animate-fadeIn pb-24 md:pb-0">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 print:hidden">
-              <div className="flex items-baseline gap-4"><h2 className="text-2xl font-serif text-[#414942]">Список гостей</h2><span className="text-[#AC8A69] font-medium">{guests.length} персон</span></div>
-              <div className="flex gap-2 w-full md:w-auto"><Button onClick={addGuest} variant="primary" className="flex-1 md:flex-none"><Plus size={18}/> Добавить</Button><DownloadMenu onSelect={handleExport} /></div>
-          </div>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 print:hidden"><div className="flex items-baseline gap-4"><h2 className="text-2xl font-serif text-[#414942]">Список гостей</h2><span className="text-[#AC8A69] font-medium">{guests.length} персон</span></div><div className="flex gap-2 w-full md:w-auto"><Button onClick={addGuest} variant="primary" className="flex-1 md:flex-none"><Plus size={18}/> Добавить</Button><DownloadMenu onSelect={handleExport} /></div></div>
           <div className="hidden print:block mb-8"><h1 className="text-3xl font-serif text-[#414942]">Список гостей</h1><p className="text-[#AC8A69] mb-4">Всего персон: {guests.length}</p></div>
-          <div className="hidden print:block w-full">
-             <table className="w-full text-left border-collapse text-sm">
-                <thead><tr className="border-b border-[#414942] text-[#936142]"><th className="py-2">ФИО</th><th className="py-2">Рассадка</th><th className="py-2">Стол</th><th className="py-2">Еда/Напитки</th><th className="py-2">Трансфер</th><th className="py-2">Комментарий</th></tr></thead>
-                <tbody className="divide-y divide-[#CCBBA9]">{guests.map(g => (<tr key={g.id} className="break-inside-avoid"><td className="py-2">{g.name}</td><td className="py-2">{g.seatingName}</td><td className="py-2">{g.table}</td><td className="py-2">{g.food} / {g.drinks}</td><td className="py-2">{g.transfer ? 'Да' : ''}</td><td className="py-2">{g.comment}</td></tr>))}</tbody>
-             </table>
-          </div>
-          <div className="grid gap-4 print:hidden">
-              {guests.map((guest, idx) => (
-                  <Card key={guest.id} className="p-6 transition-all hover:shadow-md">
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-                          <div className="flex items-center justify-between w-full md:w-auto md:col-span-1 md:justify-center md:h-full"><span className="w-8 h-8 rounded-full bg-[#CCBBA9]/30 text-[#936142] flex items-center justify-center font-bold text-sm">{idx + 1}</span><button onClick={() => removeGuest(guest.id)} className="md:hidden text-[#CCBBA9] hover:text-red-400 transition-colors"><Trash2 size={18}/></button></div>
-                          <div className="w-full md:col-span-3"><label className="text-[10px] uppercase text-[#CCBBA9] font-bold">ФИО</label><input className="w-full text-lg font-medium text-[#414942] bg-transparent border-b border-transparent focus:border-[#AC8A69] outline-none" placeholder="Имя гостя" value={guest.name} onChange={(e) => updateGuest(guest.id, 'name', e.target.value)} /><input className="w-full text-sm text-[#AC8A69] bg-transparent outline-none mt-1" placeholder="Имя на рассадке" value={guest.seatingName} onChange={(e) => updateGuest(guest.id, 'seatingName', e.target.value)} /></div>
-                          <div className="w-1/2 md:w-full md:col-span-2"><label className="text-[10px] uppercase text-[#CCBBA9] font-bold">Стол №</label><input className="w-full bg-transparent border-b border-[#EBE5E0] focus:border-[#AC8A69] outline-none py-1" value={guest.table} onChange={(e) => updateGuest(guest.id, 'table', e.target.value)} /></div>
-                          <div className="w-full md:col-span-3"><label className="text-[10px] uppercase text-[#CCBBA9] font-bold">Пожелания</label><input className="w-full text-sm bg-transparent border-b border-[#EBE5E0] outline-none py-1 mb-1" placeholder="Еда..." value={guest.food} onChange={(e) => updateGuest(guest.id, 'food', e.target.value)} /><input className="w-full text-sm bg-transparent border-b border-[#EBE5E0] outline-none py-1" placeholder="Напитки..." value={guest.drinks} onChange={(e) => updateGuest(guest.id, 'drinks', e.target.value)} /></div>
-                          <div className="w-full md:col-span-2 flex items-center gap-2 pt-4"><label className="flex items-center cursor-pointer select-none"><div className={`w-5 h-5 rounded border flex items-center justify-center mr-2 ${guest.transfer ? 'bg-[#936142] border-[#936142]' : 'border-[#CCBBA9]'}`}>{guest.transfer && <CheckSquare size={12} color="white"/>}</div><input type="checkbox" className="hidden" checked={guest.transfer} onChange={(e) => updateGuest(guest.id, 'transfer', e.target.checked)} /><span className="text-sm text-[#414942]">Трансфер</span></label></div>
-                          <div className="hidden md:flex md:col-span-1 justify-end pt-4"><button onClick={() => removeGuest(guest.id)} className="text-[#CCBBA9] hover:text-red-400 transition-colors"><Trash2 size={18}/></button></div>
-                      </div>
-                      <div className="mt-4 pt-4 border-t border-[#F9F7F5]"><input className="w-full text-sm text-[#414942] italic bg-transparent outline-none" placeholder="Заметки к гостю..." value={guest.comment} onChange={(e) => updateGuest(guest.id, 'comment', e.target.value)} /></div>
-                  </Card>
-              ))}
-          </div>
+          <div className="hidden print:block w-full"><table className="w-full text-left border-collapse text-sm"><thead><tr className="border-b border-[#414942] text-[#936142]"><th className="py-2">ФИО</th><th className="py-2">Рассадка</th><th className="py-2">Стол</th><th className="py-2">Еда/Напитки</th><th className="py-2">Трансфер</th><th className="py-2">Комментарий</th></tr></thead><tbody className="divide-y divide-[#CCBBA9]">{guests.map(g => (<tr key={g.id} className="break-inside-avoid"><td className="py-2">{g.name}</td><td className="py-2">{g.seatingName}</td><td className="py-2">{g.table}</td><td className="py-2">{g.food} / {g.drinks}</td><td className="py-2">{g.transfer ? 'Да' : ''}</td><td className="py-2">{g.comment}</td></tr>))}</tbody></table></div>
+          <div className="grid gap-4 print:hidden">{guests.map((guest, idx) => (<Card key={guest.id} className="p-6 transition-all hover:shadow-md"><div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start"><div className="flex items-center justify-between w-full md:w-auto md:col-span-1 md:justify-center md:h-full"><span className="w-8 h-8 rounded-full bg-[#CCBBA9]/30 text-[#936142] flex items-center justify-center font-bold text-sm">{idx + 1}</span><button onClick={() => removeGuest(guest.id)} className="md:hidden text-[#CCBBA9] hover:text-red-400 transition-colors"><Trash2 size={18}/></button></div><div className="w-full md:col-span-3"><label className="text-[10px] uppercase text-[#CCBBA9] font-bold">ФИО</label><input className="w-full text-lg font-medium text-[#414942] bg-transparent border-b border-transparent focus:border-[#AC8A69] outline-none" placeholder="Имя гостя" value={guest.name} onChange={(e) => updateGuest(guest.id, 'name', e.target.value)} /><input className="w-full text-sm text-[#AC8A69] bg-transparent outline-none mt-1" placeholder="Имя на рассадке" value={guest.seatingName} onChange={(e) => updateGuest(guest.id, 'seatingName', e.target.value)} /></div><div className="w-1/2 md:w-full md:col-span-2"><label className="text-[10px] uppercase text-[#CCBBA9] font-bold">Стол №</label><input className="w-full bg-transparent border-b border-[#EBE5E0] focus:border-[#AC8A69] outline-none py-1" value={guest.table} onChange={(e) => updateGuest(guest.id, 'table', e.target.value)} /></div><div className="w-full md:col-span-3"><label className="text-[10px] uppercase text-[#CCBBA9] font-bold">Пожелания</label><input className="w-full text-sm bg-transparent border-b border-[#EBE5E0] outline-none py-1 mb-1" placeholder="Еда..." value={guest.food} onChange={(e) => updateGuest(guest.id, 'food', e.target.value)} /><input className="w-full text-sm bg-transparent border-b border-[#EBE5E0] outline-none py-1" placeholder="Напитки..." value={guest.drinks} onChange={(e) => updateGuest(guest.id, 'drinks', e.target.value)} /></div><div className="w-full md:col-span-2 flex items-center gap-2 pt-4"><label className="flex items-center cursor-pointer select-none"><div className={`w-5 h-5 rounded border flex items-center justify-center mr-2 ${guest.transfer ? 'bg-[#936142] border-[#936142]' : 'border-[#CCBBA9]'}`}>{guest.transfer && <CheckSquare size={12} color="white"/>}</div><input type="checkbox" className="hidden" checked={guest.transfer} onChange={(e) => updateGuest(guest.id, 'transfer', e.target.checked)} /><span className="text-sm text-[#414942]">Трансфер</span></label></div><div className="hidden md:flex md:col-span-1 justify-end pt-4"><button onClick={() => removeGuest(guest.id)} className="text-[#CCBBA9] hover:text-red-400 transition-colors"><Trash2 size={18}/></button></div></div><div className="mt-4 pt-4 border-t border-[#F9F7F5]"><input className="w-full text-sm text-[#414942] italic bg-transparent outline-none" placeholder="Заметки к гостю..." value={guest.comment} onChange={(e) => updateGuest(guest.id, 'comment', e.target.value)} /></div></Card>))}</div>
       </div>
   )
 };
@@ -474,30 +377,12 @@ const TimingView = ({ timing, updateProject, downloadCSV }) => {
   const handleBlurSort = () => updateProject('timing', sortTiming(timing));
   const removeTimingItem = (id) => updateProject('timing', timing.filter(t => t.id !== id));
   const addTimingItem = () => { const newItem = { id: Math.random().toString(36).substr(2, 9), time: '00:00', event: 'Новый этап' }; updateProject('timing', sortTiming([...timing, newItem])); };
-  const handleExport = (type) => {
-    if (type === 'pdf') window.print();
-    else downloadCSV([["Время", "Событие"], ...timing.map(t => [t.time, t.event])], "timing.csv");
-  };
-
+  const handleExport = (type) => { if (type === 'pdf') window.print(); else downloadCSV([["Время", "Событие"], ...timing.map(t => [t.time, t.event])], "timing.csv"); };
   return (
     <div className="animate-fadeIn max-w-2xl mx-auto pb-24 md:pb-0">
       <div className="flex justify-end mb-4 print:hidden"><DownloadMenu onSelect={handleExport} /></div>
       <div className="hidden print:block mb-8"><h1 className="text-3xl font-serif text-[#414942] mb-2">Тайминг дня</h1></div>
-        <div className="relative border-l border-[#EBE5E0] ml-4 md:ml-6 space-y-6 print:border-none print:ml-0 print:space-y-2">
-            {timing.map((item) => (
-                <div key={item.id} className="relative pl-6 group print:pl-0 print:border-b print:pb-2 print:border-[#EBE5E0]">
-                    <div className="absolute -left-[5px] top-2 w-2.5 h-2.5 rounded-full bg-white border-2 border-[#AC8A69] transition-all group-hover:scale-125 group-hover:border-[#936142] print:hidden"></div>
-                    <div className="flex items-baseline gap-4">
-                          <input className="w-14 md:w-16 text-base md:text-lg font-bold text-[#936142] bg-transparent outline-none text-right font-mono print:text-left print:w-20" value={item.time} onChange={(e) => updateTimingItem(item.id, 'time', e.target.value)} onBlur={handleBlurSort} />
-                          <input className="flex-1 text-sm md:text-base text-[#414942] bg-transparent outline-none border-b border-transparent focus:border-[#AC8A69] pb-1 transition-colors" value={item.event} onChange={(e) => updateTimingItem(item.id, 'event', e.target.value)} />
-                          <button onClick={() => removeTimingItem(item.id)} className="opacity-0 group-hover:opacity-100 text-[#CCBBA9] hover:text-red-400 p-1 print:hidden"><X size={14}/></button>
-                    </div>
-                </div>
-            ))}
-            <div className="relative pl-6 pt-2 print:hidden">
-                <button onClick={addTimingItem} className="flex items-center gap-2 text-[#AC8A69] hover:text-[#936142] text-xs font-medium transition-colors"><div className="w-4 h-4 rounded-full border border-current flex items-center justify-center"><Plus size={10}/></div>Добавить этап</button>
-            </div>
-        </div>
+        <div className="relative border-l border-[#EBE5E0] ml-4 md:ml-6 space-y-6 print:border-none print:ml-0 print:space-y-2">{timing.map((item) => (<div key={item.id} className="relative pl-6 group print:pl-0 print:border-b print:pb-2 print:border-[#EBE5E0]"><div className="absolute -left-[5px] top-2 w-2.5 h-2.5 rounded-full bg-white border-2 border-[#AC8A69] transition-all group-hover:scale-125 group-hover:border-[#936142] print:hidden"></div><div className="flex items-baseline gap-4"><input className="w-14 md:w-16 text-base md:text-lg font-bold text-[#936142] bg-transparent outline-none text-right font-mono print:text-left print:w-20" value={item.time} onChange={(e) => updateTimingItem(item.id, 'time', e.target.value)} onBlur={handleBlurSort} /><input className="flex-1 text-sm md:text-base text-[#414942] bg-transparent outline-none border-b border-transparent focus:border-[#AC8A69] pb-1 transition-colors" value={item.event} onChange={(e) => updateTimingItem(item.id, 'event', e.target.value)} /><button onClick={() => removeTimingItem(item.id)} className="opacity-0 group-hover:opacity-100 text-[#CCBBA9] hover:text-red-400 p-1 print:hidden"><X size={14}/></button></div></div>))}<div className="relative pl-6 pt-2 print:hidden"><button onClick={addTimingItem} className="flex items-center gap-2 text-[#AC8A69] hover:text-[#936142] text-xs font-medium transition-colors"><div className="w-4 h-4 rounded-full border border-current flex items-center justify-center"><Plus size={10}/></div>Добавить этап</button></div></div>
     </div>
   );
 };
@@ -514,111 +399,72 @@ const OrganizersView = ({ currentUser }) => {
     const [newOrgEmail, setNewOrgEmail] = useState('');
     const [newOrgPass, setNewOrgPass] = useState('');
     const [authUser, setAuthUser] = useState(null);
-    
-    // Состояния для редактирования
     const [editingId, setEditingId] = useState(null);
     const [editName, setEditName] = useState('');
     const [editEmail, setEditEmail] = useState('');
     const [editPass, setEditPass] = useState('');
 
-    useEffect(() => {
-        onAuthStateChanged(auth, (user) => {
-            if (user) setAuthUser(user);
-        });
-    }, []);
+    useEffect(() => { onAuthStateChanged(auth, (user) => { if (user) setAuthUser(user); }); }, []);
+    useEffect(() => { if (!authUser || !currentUser.agencyId) return; 
+        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('agencyId', '==', currentUser.agencyId), where('role', '==', 'organizer'));
+        const unsubscribe = onSnapshot(q, (snapshot) => { setOrganizers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))); }); return () => unsubscribe(); 
+    }, [authUser, currentUser]);
 
-    useEffect(() => {
-        if (!authUser) return;
-        const unsubscribe = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), (snapshot) => {
-            setOrganizers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(u => u.role === 'organizer'));
-        });
-        return () => unsubscribe();
-    }, [authUser]);
-
-    const addOrganizer = async () => {
-        if (!newOrgName.trim() || !newOrgEmail.trim() || !newOrgPass.trim()) return;
-        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'users'), {
-            name: newOrgName,
-            email: newOrgEmail.toLowerCase().trim(),
-            password: newOrgPass,
-            role: 'organizer',
-            createdAt: new Date().toISOString()
-        });
-        setNewOrgName('');
-        setNewOrgEmail('');
-        setNewOrgPass('');
-    };
-
-    const deleteOrganizer = async (id) => {
-        if (window.confirm("Удалить организатора?")) {
-            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', id));
-        }
-    };
-
-    // Функции редактирования
-    const startEditing = (org) => {
-        setEditingId(org.id);
-        setEditName(org.name);
-        setEditEmail(org.email);
-        setEditPass(org.password);
-    };
-
-    const cancelEditing = () => {
-        setEditingId(null);
-        setEditName('');
-        setEditEmail('');
-        setEditPass('');
-    };
-
-    const saveOrganizer = async () => {
-        if (!editingId || !editName.trim() || !editEmail.trim() || !editPass.trim()) return;
-        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', editingId), {
-            name: editName,
-            email: editEmail.toLowerCase().trim(),
-            password: editPass
-        });
-        setEditingId(null);
-    };
+    const addOrganizer = async () => { if (!newOrgName.trim() || !newOrgEmail.trim() || !newOrgPass.trim()) return; await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'users'), { name: newOrgName, email: newOrgEmail.toLowerCase().trim(), password: newOrgPass, role: 'organizer', agencyId: currentUser.agencyId, createdAt: new Date().toISOString() }); setNewOrgName(''); setNewOrgEmail(''); setNewOrgPass(''); };
+    const deleteOrganizer = async (id) => { if (window.confirm("Удалить организатора?")) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', id)); } };
+    const startEditing = (org) => { setEditingId(org.id); setEditName(org.name); setEditEmail(org.email); setEditPass(org.password); };
+    const cancelEditing = () => { setEditingId(null); setEditName(''); setEditEmail(''); setEditPass(''); };
+    const saveOrganizer = async () => { if (!editingId || !editName.trim() || !editEmail.trim() || !editPass.trim()) return; await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', editingId), { name: editName, email: editEmail.toLowerCase().trim(), password: editPass }); setEditingId(null); };
 
     return (
         <div className="p-6 md:p-12 max-w-4xl mx-auto">
             <h2 className="text-3xl font-bold text-[#414942] mb-8">Команда</h2>
-            <Card className="p-6 mb-8 bg-white/80 backdrop-blur-sm border-[#936142]/20">
-                <h3 className="font-bold text-[#936142] mb-4">Добавить организатора</h3>
+            <Card className="p-6 mb-8 bg-white/80 backdrop-blur-sm border-[#936142]/20"><h3 className="font-bold text-[#936142] mb-4">Добавить сотрудника</h3><div className="grid gap-4 md:grid-cols-3"><input className="bg-[#F9F7F5] border-none rounded-xl p-3" placeholder="Имя" value={newOrgName} onChange={e => setNewOrgName(e.target.value)} /><input className="bg-[#F9F7F5] border-none rounded-xl p-3" placeholder="Email" value={newOrgEmail} onChange={e => setNewOrgEmail(e.target.value)} /><input className="bg-[#F9F7F5] border-none rounded-xl p-3" placeholder="Пароль" value={newOrgPass} onChange={e => setNewOrgPass(e.target.value)} /></div><Button onClick={addOrganizer} className="mt-4 w-full md:w-auto">Добавить</Button></Card>
+            <div className="grid gap-4">{organizers.map(org => (<div key={org.id} className="bg-white p-4 rounded-xl shadow-sm">{editingId === org.id ? (<div className="flex flex-col md:flex-row gap-4 items-center w-full"><div className="grid gap-2 md:grid-cols-3 flex-1 w-full"><input className="bg-[#F9F7F5] border border-[#AC8A69] rounded-lg p-2" value={editName} onChange={e => setEditName(e.target.value)} /><input className="bg-[#F9F7F5] border border-[#AC8A69] rounded-lg p-2" value={editEmail} onChange={e => setEditEmail(e.target.value)} /><input className="bg-[#F9F7F5] border border-[#AC8A69] rounded-lg p-2" value={editPass} onChange={e => setEditPass(e.target.value)} /></div><div className="flex gap-2"><button onClick={saveOrganizer} className="bg-[#936142] text-white p-2 rounded-lg hover:bg-[#7D5238]"><Save size={18}/></button><button onClick={cancelEditing} className="bg-gray-200 text-gray-600 p-2 rounded-lg hover:bg-gray-300"><XCircle size={18}/></button></div></div>) : (<div className="flex justify-between items-center w-full"><div><p className="font-bold text-[#414942]">{org.name}</p><p className="text-xs text-[#AC8A69]">{org.email} | Пароль: {org.password}</p></div><div className="flex gap-2"><button onClick={() => startEditing(org)} className="text-[#AC8A69] hover:text-[#936142] p-2"><Edit3 size={18}/></button><button onClick={() => deleteOrganizer(org.id)} className="text-red-300 hover:text-red-500 p-2"><Trash2 size={18}/></button></div></div>)}</div>))}</div>
+        </div>
+    );
+};
+
+const SuperAdminView = ({ currentUser }) => {
+    const [agencies, setAgencies] = useState([]);
+    const [newAgencyName, setNewAgencyName] = useState('');
+    const [newAgencyEmail, setNewAgencyEmail] = useState('');
+    const [newAgencyPass, setNewAgencyPass] = useState('');
+    
+    useEffect(() => {
+        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('role', '==', 'agency_admin'));
+        const unsubscribe = onSnapshot(q, (snapshot) => { setAgencies(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))); });
+        return () => unsubscribe();
+    }, []);
+
+    const createAgency = async () => {
+        if (!newAgencyName || !newAgencyEmail || !newAgencyPass) return;
+        const agencyId = Math.random().toString(36).substr(2, 9); // Generate unique Agency ID
+        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'users'), {
+            name: newAgencyName, email: newAgencyEmail.toLowerCase().trim(), password: newAgencyPass, 
+            role: 'agency_admin', agencyId: agencyId, createdAt: new Date().toISOString()
+        });
+        setNewAgencyName(''); setNewAgencyEmail(''); setNewAgencyPass('');
+        alert(`Агентство создано! ID: ${agencyId}`);
+    };
+
+    return (
+        <div className="p-6 md:p-12 max-w-4xl mx-auto">
+            <h2 className="text-3xl font-bold text-[#414942] mb-8">Управление Агентствами (Super Admin)</h2>
+            <Card className="p-6 mb-8 bg-white border-[#936142]/20">
+                <h3 className="font-bold text-[#936142] mb-4">Создать новое агентство</h3>
                 <div className="grid gap-4 md:grid-cols-3">
-                    <input className="bg-[#F9F7F5] border-none rounded-xl p-3" placeholder="Имя" value={newOrgName} onChange={e => setNewOrgName(e.target.value)} />
-                    <input className="bg-[#F9F7F5] border-none rounded-xl p-3" placeholder="Email" value={newOrgEmail} onChange={e => setNewOrgEmail(e.target.value)} />
-                    <input className="bg-[#F9F7F5] border-none rounded-xl p-3" placeholder="Пароль" value={newOrgPass} onChange={e => setNewOrgPass(e.target.value)} />
+                    <input className="bg-[#F9F7F5] border-none rounded-xl p-3" placeholder="Название Агентства" value={newAgencyName} onChange={e => setNewAgencyName(e.target.value)} />
+                    <input className="bg-[#F9F7F5] border-none rounded-xl p-3" placeholder="Email Владельца" value={newAgencyEmail} onChange={e => setNewAgencyEmail(e.target.value)} />
+                    <input className="bg-[#F9F7F5] border-none rounded-xl p-3" placeholder="Пароль" value={newAgencyPass} onChange={e => setNewAgencyPass(e.target.value)} />
                 </div>
-                <Button onClick={addOrganizer} className="mt-4 w-full md:w-auto">Добавить</Button>
+                <Button onClick={createAgency} className="mt-4 w-full md:w-auto">Создать кабинет</Button>
             </Card>
-            <div className="grid gap-4">
-                {organizers.map(org => (
-                    <div key={org.id} className="bg-white p-4 rounded-xl shadow-sm">
-                        {editingId === org.id ? (
-                             <div className="flex flex-col md:flex-row gap-4 items-center w-full">
-                                <div className="grid gap-2 md:grid-cols-3 flex-1 w-full">
-                                    <input className="bg-[#F9F7F5] border border-[#AC8A69] rounded-lg p-2" value={editName} onChange={e => setEditName(e.target.value)} />
-                                    <input className="bg-[#F9F7F5] border border-[#AC8A69] rounded-lg p-2" value={editEmail} onChange={e => setEditEmail(e.target.value)} />
-                                    <input className="bg-[#F9F7F5] border border-[#AC8A69] rounded-lg p-2" value={editPass} onChange={e => setEditPass(e.target.value)} />
-                                </div>
-                                <div className="flex gap-2">
-                                    <button onClick={saveOrganizer} className="bg-[#936142] text-white p-2 rounded-lg hover:bg-[#7D5238]"><Save size={18}/></button>
-                                    <button onClick={cancelEditing} className="bg-gray-200 text-gray-600 p-2 rounded-lg hover:bg-gray-300"><XCircle size={18}/></button>
-                                </div>
-                             </div>
-                        ) : (
-                            <div className="flex justify-between items-center w-full">
-                                <div>
-                                    <p className="font-bold text-[#414942]">{org.name}</p>
-                                    <p className="text-xs text-[#AC8A69]">{org.email} | Пароль: {org.password}</p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button onClick={() => startEditing(org)} className="text-[#AC8A69] hover:text-[#936142] p-2"><Edit3 size={18}/></button>
-                                    <button onClick={() => deleteOrganizer(org.id)} className="text-red-300 hover:text-red-500 p-2"><Trash2 size={18}/></button>
-                                </div>
-                            </div>
-                        )}
+            <div className="space-y-4">
+                {agencies.map(a => (
+                    <div key={a.id} className="bg-white p-4 rounded-xl shadow-sm border border-[#EBE5E0] flex justify-between items-center">
+                        <div><p className="font-bold text-[#414942]">{a.name}</p><p className="text-xs text-[#AC8A69]">{a.email} | ID: {a.agencyId}</p></div>
+                        <div className="px-3 py-1 bg-[#F9F7F5] rounded-lg text-xs font-bold text-[#936142]">ACTIVE</div>
                     </div>
                 ))}
             </div>
@@ -668,7 +514,6 @@ export default function WeddingPlanner() {
                 setNewProfileSecret(parsedUser.secret || '');
                 setView('dashboard');
             } catch (e) {
-                console.error("Failed to parse saved user", e);
                 localStorage.removeItem('wed_user');
             }
         }
@@ -677,17 +522,19 @@ export default function WeddingPlanner() {
     return onAuthStateChanged(auth, setAuthUser);
   }, []);
 
-  // 2. Initial Owner Creation & Organizers fetch
+  // 2. Initial Owner Creation (One-time setup for YOU)
   useEffect(() => {
       if (!authUser) return;
       const initOwner = async () => {
-          const unsub = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('role', '==', 'owner')), (snapshot) => {
+          const unsub = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('role', '==', 'super_admin')), (snapshot) => {
               if (snapshot.empty) {
+                  // Create the FIRST Super Admin (You)
                   addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'users'), {
-                      email: 'owner@wed.control',
-                      password: 'admin',
-                      name: 'Владелец',
-                      role: 'owner',
+                      email: 'owner@wed.control', // Your Login
+                      password: 'admin',          // Your Password
+                      name: 'Владелец Платформы',
+                      role: 'super_admin',
+                      agencyId: 'super_admin_id',
                       secret: 'secret'
                   });
               }
@@ -695,21 +542,21 @@ export default function WeddingPlanner() {
           });
       };
       initOwner();
-
-      const unsubOrganizers = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), (snapshot) => {
-          const orgs = snapshot.docs.map(d => ({id: d.id, ...d.data()})).filter(u => u.role === 'organizer');
-          setOrganizersList(orgs);
-      });
-      return () => unsubOrganizers();
   }, [authUser]);
 
-  // 3. MAIN PROJECTS LIST SYNC (Only fetches list)
+  // 3. MAIN PROJECTS LIST SYNC (Filtered by Agency!)
   useEffect(() => {
-    if (!authUser) return;
+    if (!authUser || !user) return;
     const urlParams = new URLSearchParams(window.location.search);
     const projectIdFromUrl = urlParams.get('id');
 
-    const unsubscribeProjects = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), (snapshot) => {
+    // Filter projects based on Agency ID
+    let q = collection(db, 'artifacts', appId, 'public', 'data', 'projects');
+    if (user.role !== 'super_admin') {
+        q = query(q, where('agencyId', '==', user.agencyId));
+    }
+
+    const unsubscribeProjects = onSnapshot(q, (snapshot) => {
       const allProjects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
       if (projectIdFromUrl && !user && view !== 'client_login') {
@@ -719,66 +566,46 @@ export default function WeddingPlanner() {
               setView('client_login');
           }
       }
-
-      let visibleProjects = [];
-      if (user?.role === 'owner') visibleProjects = allProjects;
-      else if (user?.role === 'organizer') visibleProjects = allProjects.filter(p => p.organizerId === user.id);
-      else if (user?.role === 'client') visibleProjects = allProjects.filter(p => p.id === user.projectId);
-      
-      setProjects(visibleProjects);
+      setProjects(allProjects);
     });
+
+    // Also fetch organizers for this agency for the dropdown
+    if (user.role === 'agency_admin') {
+        const orgQ = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('agencyId', '==', user.agencyId), where('role', '==', 'organizer'));
+        onSnapshot(orgQ, (snap) => setOrganizersList(snap.docs.map(d => ({id: d.id, ...d.data()}))));
+    }
 
     return () => unsubscribeProjects();
   }, [user, authUser, view]);
 
-  // 4. ACTIVE PROJECT SYNC (Only runs when a project is OPEN)
+  // 4. ACTIVE PROJECT SYNC
   useEffect(() => {
       if (!currentProject?.id || view !== 'project') return;
-      
       const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id);
       const unsubscribe = onSnapshot(docRef, (docSnap) => {
-         if (docSnap.exists()) {
-             // Updates only the active project without triggering the list re-render loop
-             setCurrentProject(prev => ({ ...prev, ...docSnap.data() })); 
-         }
+         if (docSnap.exists()) setCurrentProject(prev => ({ ...prev, ...docSnap.data() })); 
       });
       return () => unsubscribe();
-  }, [currentProject?.id, view]); // Only re-subscribes if ID changes or view opens
+  }, [currentProject?.id, view]);
 
   const handleLogin = async () => {
     if (!authUser) { alert("Соединение..."); return; }
-
     const unsubscribe = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), (snapshot) => {
         const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const foundUser = users.find(u => u.email === loginEmail.toLowerCase().trim() && u.password === loginPass.trim());
-        
         if (foundUser) {
-            const userData = { id: foundUser.id, role: foundUser.role, name: foundUser.name, email: foundUser.email, password: foundUser.password, secret: foundUser.secret };
+            const userData = { id: foundUser.id, role: foundUser.role, name: foundUser.name, email: foundUser.email, password: foundUser.password, secret: foundUser.secret, agencyId: foundUser.agencyId };
             setUser(userData);
             localStorage.setItem('wed_user', JSON.stringify(userData));
-            setNewProfileEmail(foundUser.email);
-            setNewProfilePass(foundUser.password);
-            setNewProfileSecret(foundUser.secret || '');
+            setNewProfileEmail(foundUser.email); setNewProfilePass(foundUser.password); setNewProfileSecret(foundUser.secret || '');
             setView('dashboard');
             unsubscribe();
-        } else {
-            alert('Неверный Email или пароль');
-            unsubscribe();
-        }
+        } else { alert('Неверный Email или пароль'); unsubscribe(); }
     });
   };
 
-  const handleLogout = () => {
-      localStorage.removeItem('wed_user');
-      setUser(null);
-      setView('login');
-      setLoginEmail('');
-      setLoginPass('');
-  };
-
-  const handleKeyDown = (e) => {
-      if (e.key === 'Enter') handleLogin();
-  };
+  const handleLogout = () => { localStorage.removeItem('wed_user'); setUser(null); setView('login'); setLoginEmail(''); setLoginPass(''); };
+  const handleKeyDown = (e) => { if (e.key === 'Enter') handleLogin(); };
 
   const handleRecovery = async () => {
       if (!recoveryEmail || !recoverySecret || !recoveryNewPass) { alert("Заполните все поля"); return; }
@@ -813,13 +640,25 @@ export default function WeddingPlanner() {
         const creationDate = new Date(); const weddingDate = new Date(formData.date);
         let projectTasks = TASK_TEMPLATES.map(t => ({ id: Math.random().toString(36).substr(2, 9), text: t.text, deadline: new Date(creationDate.getTime() + (weddingDate - creationDate) * t.pos).toISOString(), done: false })).sort((a,b)=>new Date(a.deadline)-new Date(b.deadline));
         let projectExpenses = [...INITIAL_EXPENSES];
-        if (formData.prepLocation === 'hotel') { projectTasks.push({ id: 'hotel_1', text: 'Забронировать номер', deadline: new Date().toISOString(), done: false }); projectExpenses.push({ category: 'Логистика', name: 'Номер в отеле', plan: 0, fact: 0, paid: 0, note: '' }); }
-        if (formData.registrationType === 'offsite') { projectTasks.push({ id: 'reg_1', text: 'Выбрать регистратора', deadline: new Date().toISOString(), done: false }); projectExpenses.push({ category: 'Программа', name: 'Регистратор', plan: 0, fact: 0, paid: 0, note: '' }); }
         
         let finalOrgId = user.id; let finalOrgName = user.name;
-        if (user.role === 'owner') { if (formData.organizerId && formData.organizerId !== 'owner') { const selectedOrg = organizersList.find(o => o.id === formData.organizerId); if (selectedOrg) { finalOrgId = selectedOrg.id; finalOrgName = selectedOrg.name; } } }
+        if (user.role === 'agency_admin' && formData.organizerId && formData.organizerId !== 'owner') { 
+            const selectedOrg = organizersList.find(o => o.id === formData.organizerId); 
+            if (selectedOrg) { finalOrgId = selectedOrg.id; finalOrgName = selectedOrg.name; } 
+        }
         
-        const newProject = { ...formData, clientPassword: formData.clientPassword || Math.floor(1000+Math.random()*9000).toString(), tasks: projectTasks, expenses: projectExpenses, timing: INITIAL_TIMING.map(t=>({...t, id: Math.random().toString(36).substr(2,9)})), guests: [], notes: '', isArchived: false, organizerId: finalOrgId, organizerName: finalOrgName, createdAt: new Date().toISOString() };
+        const newProject = { 
+            ...formData, 
+            clientPassword: formData.clientPassword || Math.floor(1000+Math.random()*9000).toString(), 
+            tasks: projectTasks, 
+            expenses: projectExpenses, 
+            timing: INITIAL_TIMING.map(t=>({...t, id: Math.random().toString(36).substr(2,9)})), 
+            guests: [], notes: '', isArchived: false, 
+            organizerId: finalOrgId, 
+            organizerName: finalOrgName, 
+            agencyId: user.agencyId, // CRITICAL: Assign project to current user's agency
+            createdAt: new Date().toISOString() 
+        };
         const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), newProject);
         setCurrentProject({ id: docRef.id, ...newProject }); setView('project'); setActiveTab('overview');
     } catch (e) { console.error(e); alert("Ошибка"); } finally { setIsCreating(false); }
@@ -830,76 +669,13 @@ export default function WeddingPlanner() {
   const toggleArchiveProject = async () => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id), { isArchived: !currentProject.isArchived }); setIsEditingProject(false); setView('dashboard'); };
 
   // --- VIEWS ---
+  if (view === 'client_login') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center"><Heart size={48} className="text-[#936142] mx-auto mb-6" /><h2 className="text-2xl font-serif text-[#414942] mb-2">{currentProject?.groomName} & {currentProject?.brideName}</h2><p className="text-[#AC8A69] mb-8">Введите пароль для доступа</p><Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} /><Button className="w-full" onClick={handleClientLinkLogin}>Войти</Button></div></div>);
+  if (view === 'recovery') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><h2 className="text-2xl font-bold text-[#414942] mb-4 text-center">Восстановление</h2><Input placeholder="Email" value={recoveryEmail} onChange={e => setRecoveryEmail(e.target.value)} /><Input placeholder="Секретное слово" value={recoverySecret} onChange={e => setRecoverySecret(e.target.value)} /><Input placeholder="Новый пароль" type="password" value={recoveryNewPass} onChange={e => setRecoveryNewPass(e.target.value)} /><Button className="w-full" onClick={handleRecovery}>Сменить пароль</Button><button onClick={() => setView('login')} className="w-full text-center text-sm text-[#AC8A69] mt-4">Назад ко входу</button></div></div>);
+  if (view === 'login') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="mb-8 text-center"><h1 className="text-4xl font-bold text-[#414942] tracking-tight mb-2">{APP_TITLE}</h1><p className="text-[#AC8A69]">Система управления свадьбами</p></div><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><Input placeholder="Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} onKeyDown={handleKeyDown}/><Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} onKeyDown={handleKeyDown}/><Button className="w-full" onClick={handleLogin}>Войти</Button><button onClick={() => setView('recovery')} className="w-full text-center text-xs text-[#AC8A69] hover:underline mt-4 block">Забыли пароль?</button></div></div>);
   
-  if (view === 'client_login') {
-      return (
-          <div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6">
-              <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center">
-                  <Heart size={48} className="text-[#936142] mx-auto mb-6" />
-                  <h2 className="text-2xl font-serif text-[#414942] mb-2">{currentProject?.groomName} & {currentProject?.brideName}</h2>
-                  <p className="text-[#AC8A69] mb-8">Введите пароль для доступа</p>
-                  <Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} />
-                  <Button className="w-full" onClick={handleClientLinkLogin}>Войти</Button>
-              </div>
-          </div>
-      )
-  }
-
-  if (view === 'recovery') {
-      return (
-          <div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6">
-              <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4">
-                  <h2 className="text-2xl font-bold text-[#414942] mb-4 text-center">Восстановление</h2>
-                  <p className="text-xs text-[#AC8A69] mb-4 text-center">Введите почту и секретное слово, указанное в вашем профиле.</p>
-                  <Input placeholder="Email" value={recoveryEmail} onChange={e => setRecoveryEmail(e.target.value)} />
-                  <Input placeholder="Секретное слово" value={recoverySecret} onChange={e => setRecoverySecret(e.target.value)} />
-                  <Input placeholder="Новый пароль" type="password" value={recoveryNewPass} onChange={e => setRecoveryNewPass(e.target.value)} />
-                  <Button className="w-full" onClick={handleRecovery}>Сменить пароль</Button>
-                  <button onClick={() => setView('login')} className="w-full text-center text-sm text-[#AC8A69] mt-4">Назад ко входу</button>
-              </div>
-          </div>
-      )
-  }
-
-  if (view === 'login') {
-      return (
-          <div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6">
-              <div className="mb-8 text-center">
-                  <h1 className="text-4xl font-bold text-[#414942] tracking-tight mb-2">Wed.Control</h1>
-                  <p className="text-[#AC8A69]">Система управления свадьбами</p>
-              </div>
-              <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4">
-                  <Input 
-                    placeholder="Email" 
-                    value={loginEmail} 
-                    onChange={e => setLoginEmail(e.target.value)} 
-                    onKeyDown={handleKeyDown}
-                  />
-                  <Input 
-                    placeholder="Пароль" 
-                    type="password" 
-                    value={loginPass} 
-                    onChange={e => setLoginPass(e.target.value)} 
-                    onKeyDown={handleKeyDown}
-                  />
-                  <Button className="w-full" onClick={handleLogin}>Войти</Button>
-                  <button onClick={() => setView('recovery')} className="w-full text-center text-xs text-[#AC8A69] hover:underline mt-4 block">Забыли пароль?</button>
-              </div>
-          </div>
-      )
-  }
-
-  if (view === 'manage_organizers') {
-      return (
-          <div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]">
-              <nav className="p-6 flex items-center gap-4">
-                  <button onClick={() => setView('dashboard')} className="p-2 hover:bg-white rounded-full text-[#AC8A69]"><ChevronLeft/></button>
-                  <h1 className="text-xl font-bold text-[#414942]">Назад</h1>
-              </nav>
-              <OrganizersView currentUser={user} />
-          </div>
-      )
-  }
+  if (view === 'manage_organizers') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]"><nav className="p-6 flex items-center gap-4"><button onClick={() => setView('dashboard')} className="p-2 hover:bg-white rounded-full text-[#AC8A69]"><ChevronLeft/></button><h1 className="text-xl font-bold text-[#414942]">Назад</h1></nav><OrganizersView currentUser={user} /></div>);
+  if (view === 'vendors_db') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]"><nav className="p-6 flex items-center gap-4"><button onClick={() => setView('dashboard')} className="p-2 hover:bg-white rounded-full text-[#AC8A69]"><ChevronLeft/></button><h1 className="text-xl font-bold text-[#414942]">Назад</h1></nav><VendorsView agencyId={user.agencyId} /></div>);
+  if (view === 'super_admin') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]"><nav className="p-6 flex items-center gap-4"><button onClick={() => setView('dashboard')} className="p-2 hover:bg-white rounded-full text-[#AC8A69]"><ChevronLeft/></button><h1 className="text-xl font-bold text-[#414942]">Назад</h1></nav><SuperAdminView currentUser={user} /></div>);
 
   const sortedProjects = [...projects].filter(p => dashboardTab === 'active' ? !p.isArchived : p.isArchived).sort((a, b) => new Date(a.date) - new Date(b.date));
 
@@ -908,10 +684,18 @@ export default function WeddingPlanner() {
       <div className="w-full min-h-screen h-auto overflow-visible bg-[#F9F7F5] font-[Montserrat] p-6 md:p-12 print:hidden">
         <div className="max-w-6xl mx-auto">
           <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
-            <div><h1 className="text-4xl md:text-5xl font-bold text-[#414942] tracking-tight">Wed.Control</h1><button onClick={() => setShowProfile(true)} className="text-[#AC8A69] mt-2 hover:text-[#936142] flex items-center gap-2">Кабинет: {user?.name} <Edit3 size={14}/></button></div>
+            <div>
+                <h1 className="text-4xl md:text-5xl font-bold text-[#414942] tracking-tight">{APP_TITLE}</h1>
+                <div className="flex items-center gap-4 mt-2">
+                    <button onClick={() => setShowProfile(true)} className="text-[#AC8A69] hover:text-[#936142] flex items-center gap-2">Кабинет: {user?.name} <Edit3 size={14}/></button>
+                    {user.role === 'super_admin' && <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded text-xs font-bold">SUPER ADMIN</span>}
+                </div>
+            </div>
             <div className="flex gap-2 w-full md:w-auto flex-wrap">
                 <Button onClick={() => { setFormData({...INITIAL_FORM_STATE, clientPassword: Math.floor(1000+Math.random()*9000).toString()}); setView('create'); window.scrollTo(0,0); }}><Plus size={20}/> Новый проект</Button>
-                {user.role === 'owner' && <Button variant="secondary" onClick={() => setView('manage_organizers')}><UsersIcon size={20}/> Команда</Button>}
+                {(user.role === 'agency_admin' || user.role === 'organizer') && <Button variant="secondary" onClick={() => setView('vendors_db')}><Briefcase size={20}/> База подрядчиков</Button>}
+                {user.role === 'agency_admin' && <Button variant="secondary" onClick={() => setView('manage_organizers')}><UsersIcon size={20}/> Команда</Button>}
+                {user.role === 'super_admin' && <Button variant="secondary" className="bg-[#414942] text-white hover:bg-[#2C332D]" onClick={() => setView('super_admin')}><Building size={20}/> Агентства</Button>}
                 <Button variant="ghost" onClick={handleLogout}><LogOut size={20}/></Button>
             </div>
           </header>
@@ -926,10 +710,7 @@ export default function WeddingPlanner() {
                           <Input label="Пароль" value={newProfilePass} onChange={e => setNewProfilePass(e.target.value)} />
                           <div className="bg-[#F9F7F5] p-3 rounded-xl border border-[#AC8A69]/30">
                               <label className="block text-[10px] font-bold text-[#AC8A69] uppercase tracking-wider mb-2">Секретное слово (для сброса пароля)</label>
-                              <div className="flex gap-2 items-center">
-                                <Shield size={16} className="text-[#936142]"/>
-                                <input className="bg-transparent w-full text-[#414942] outline-none" placeholder="Придумайте слово" value={newProfileSecret} onChange={e => setNewProfileSecret(e.target.value)} />
-                              </div>
+                              <div className="flex gap-2 items-center"><Shield size={16} className="text-[#936142]"/><input className="bg-transparent w-full text-[#414942] outline-none" placeholder="Придумайте слово" value={newProfileSecret} onChange={e => setNewProfileSecret(e.target.value)} /></div>
                           </div>
                           <Button onClick={updateUserProfile} className="w-full">Сохранить изменения</Button>
                       </div>
@@ -969,18 +750,12 @@ export default function WeddingPlanner() {
         <Card className="w-full max-w-2xl p-8 md:p-12 animate-slideUp">
           <div className="flex items-center mb-8"><button onClick={() => setView('dashboard')} className="mr-4 text-[#AC8A69] hover:text-[#936142]"><ChevronLeft size={24}/></button><h2 className="text-3xl font-bold text-[#414942]">Создание истории</h2></div>
           <div className="space-y-6">
-            {user.role === 'owner' ? (
+            {user.role === 'agency_admin' ? (
                 <div>
                     <label className="block text-xs font-semibold text-[#AC8A69] uppercase tracking-wider mb-2 ml-1">Ответственный организатор</label>
-                    <select 
-                        className="w-full bg-[#F9F7F5] border-none rounded-xl p-4 text-[#414942] outline-none focus:ring-2 focus:ring-[#936142]/20 mb-4"
-                        value={formData.organizerId}
-                        onChange={e => setFormData({...formData, organizerId: e.target.value})}
-                    >
-                        <option value="owner">Владелец (Я)</option>
-                        {organizersList.map(org => (
-                            <option key={org.id} value={org.id}>{org.name}</option>
-                        ))}
+                    <select className="w-full bg-[#F9F7F5] border-none rounded-xl p-4 text-[#414942] outline-none focus:ring-2 focus:ring-[#936142]/20 mb-4" value={formData.organizerId} onChange={e => setFormData({...formData, organizerId: e.target.value})}>
+                        <option value="owner">Я (Администратор)</option>
+                        {organizersList.map(org => (<option key={org.id} value={org.id}>{org.name}</option>))}
                     </select>
                 </div>
             ) : null}
@@ -1001,10 +776,7 @@ export default function WeddingPlanner() {
                 <Key className="text-[#936142]" />
                 <div className="flex-1">
                     <p className="text-xs font-bold text-[#AC8A69] uppercase">Пароль для клиента (авто)</p>
-                    <div className="flex gap-2">
-                        <input className="bg-transparent font-mono text-xl font-bold text-[#414942] outline-none w-full" value={formData.clientPassword} onChange={e => setFormData({...formData, clientPassword: e.target.value})} />
-                        <button onClick={() => setFormData({...formData, clientPassword: Math.floor(1000 + Math.random() * 9000).toString()})} className="text-[#AC8A69] hover:text-[#936142]"><Edit3 size={16}/></button>
-                    </div>
+                    <div className="flex gap-2"><input className="bg-transparent font-mono text-xl font-bold text-[#414942] outline-none w-full" value={formData.clientPassword} onChange={e => setFormData({...formData, clientPassword: e.target.value})} /><button onClick={() => setFormData({...formData, clientPassword: Math.floor(1000 + Math.random() * 9000).toString()})} className="text-[#AC8A69] hover:text-[#936142]"><Edit3 size={16}/></button></div>
                 </div>
             </div>
             <Button onClick={handleCreateProject} disabled={isCreating} className="w-full mt-8">{isCreating ? <><Loader2 className="animate-spin"/> Создание...</> : 'Создать проект'}</Button>
@@ -1020,7 +792,7 @@ export default function WeddingPlanner() {
       <div className="w-full min-h-screen h-auto overflow-visible bg-[#F9F7F5] font-[Montserrat]">
          <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-[#EBE5E0] print:hidden">
             <div className="max-w-7xl mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
-                <div className="flex items-center gap-2 md:gap-4">{user.role !== 'client' && <button onClick={() => setView('dashboard')} className="p-2 hover:bg-[#F9F7F5] rounded-full transition-colors text-[#AC8A69]"><ChevronLeft /></button>}<span className="text-lg md:text-xl font-bold text-[#936142] tracking-tight whitespace-nowrap">Wed.Control</span></div>
+                <div className="flex items-center gap-2 md:gap-4">{user.role !== 'client' && <button onClick={() => setView('dashboard')} className="p-2 hover:bg-[#F9F7F5] rounded-full transition-colors text-[#AC8A69]"><ChevronLeft /></button>}<span className="text-lg md:text-xl font-bold text-[#936142] tracking-tight whitespace-nowrap">{APP_TITLE}</span></div>
                 <div className="hidden md:flex gap-1 bg-[#F9F7F5] p-1 rounded-xl">
                     {['overview', 'tasks', 'budget', 'guests', 'timing', 'notes'].map(tab => (
                         <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? 'bg-white text-[#936142] shadow-sm' : 'text-[#CCBBA9] hover:text-[#414942]'}`}>{tab === 'overview' ? 'Обзор' : tab === 'tasks' ? 'Задачи' : tab === 'budget' ? 'Смета' : tab === 'guests' ? 'Гости' : tab === 'timing' ? 'Тайминг' : 'Заметки'}</button>
