@@ -15,11 +15,11 @@ import {
 } from "firebase/firestore";
 
 // --- CONFIG ---
-const SITE_URL = 'https://wed-control.vercel.app'; 
-const APP_TITLE = 'Wed.Control';
+const SITE_URL = import.meta.env.VITE_SITE_URL || 'https://wed-control.vercel.app'; 
+const APP_TITLE = 'ParaPlanner';
+const LOGO_URL = 'https://optim.tildacdn.com/tild6638-3332-4035-b465-346665336138/-/format/webp/Remove_background_fr.png.webp';
 
 // --- FIREBASE SETUP ---
-// Возвращаем прямые ключи, чтобы гарантировать работу
 const firebaseConfig = {
     apiKey: "AIzaSyApHVEteylAoYqC2TSmJr0zk3LL5n8uep8",
     authDomain: "wed-control.firebaseapp.com",
@@ -124,6 +124,10 @@ const downloadCSV = (data, filename) => {
 };
 
 // --- UI COMPONENTS ---
+
+const Logo = ({ className }) => (
+    <img src={LOGO_URL} alt={APP_TITLE} className={`object-contain ${className}`} />
+);
 
 const Footer = () => (
     <footer className="mt-auto py-8 text-center text-[#CCBBA9] text-xs border-t border-[#EBE5E0] w-full print:hidden">
@@ -241,9 +245,7 @@ const GuestsView = ({ guests, updateProject, downloadCSV }) => {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 print:hidden"><div className="flex items-baseline gap-4"><h2 className="text-2xl font-serif text-[#414942]">Список гостей</h2><span className="text-[#AC8A69] font-medium">{guests.length} персон</span></div><div className="flex gap-2 w-full md:w-auto"><Button onClick={addGuest} variant="primary" className="flex-1 md:flex-none"><Plus size={18}/> Добавить</Button><DownloadMenu onSelect={handleExport} /></div></div>
           <div className="hidden print:block mb-8"><h1 className="text-3xl font-serif text-[#414942]">Список гостей</h1><p className="text-[#AC8A69] mb-4">Всего персон: {guests.length}</p></div>
           <div className="hidden print:block w-full"><table className="w-full text-left border-collapse text-sm"><thead><tr className="border-b border-[#414942] text-[#936142]"><th className="py-2">ФИО</th><th className="py-2">Рассадка</th><th className="py-2">Стол</th><th className="py-2">Еда/Напитки</th><th className="py-2">Трансфер</th><th className="py-2">Комментарий</th></tr></thead><tbody className="divide-y divide-[#CCBBA9]">{guests.map(g => (<tr key={g.id} className="break-inside-avoid"><td className="py-2">{g.name}</td><td className="py-2">{g.seatingName}</td><td className="py-2">{g.table}</td><td className="py-2">{g.food} / {g.drinks}</td><td className="py-2">{g.transfer ? 'Да' : ''}</td><td className="py-2">{g.comment}</td></tr>))}</tbody></table></div>
-          <div className="grid gap-4 print:hidden">{guests.map((guest, idx) => (<Card key={guest.id} className="p-6 transition-all hover:shadow-md"><div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start"><div className="flex items-center justify-between w-full md:w-auto md:col-span-1 md:justify-center md:h-full"><span className="w-8 h-8 rounded-full bg-[#CCBBA9]/30 text-[#936142] flex items-center justify-center font-bold text-sm">{idx + 1}</span><button onClick={() => removeGuest(guest.id)} className="md:hidden text-[#CCBBA9] hover:text-red-400 transition-colors"><Trash2 size={18}/></button></div><div className="w-full md:col-span-3"><label className="text-[10px] uppercase text-[#CCBBA9] font-bold">ФИО</label><input className="w-full text-lg font-medium text-[#414942] bg-transparent border-b border-transparent focus:border-[#AC8A69] outline-none" placeholder="Имя гостя" value={guest.name} onChange={(e) => updateGuest(guest.id, 'name', e.target.value)} /><input className="w-full text-sm text-[#AC8A69] bg-transparent outline-none mt-1" placeholder="Имя на рассадке" value={guest.seatingName} onChange={(e) => updateGuest(guest.id, 'seatingName', e.target.value)} /></div><div className="w-1/2 md:w-full md:col-span-2"><label className="text-[10px] uppercase text-[#CCBBA9] font-bold">Стол №</label><input className="w-full bg-transparent border-b border-[#EBE5E0] focus:border-[#AC8A69] outline-none py-1" value={guest.table} onChange={(e) => updateGuest(guest.id, 'table', e.target.value)} /></div><div className="w-full md:col-span-3"><label className="text-[10px] uppercase text-[#CCBBA9] font-bold">Пожелания</label><input className="w-full text-sm bg-transparent border-b border-[#EBE5E0] outline-none py-1 mb-1" placeholder="Еда..." value={guest.food} onChange={(e) => updateGuest(guest.id, 'food', e.target.value)} /><input className="w-full text-sm bg-transparent border-b border-[#EBE5E0] outline-none py-1" placeholder="Напитки..." value={guest.drinks} onChange={(e) => updateGuest(guest.id, 'drinks', e.target.value)} /></div><div className="w-full md:col-span-2 flex items-center gap-2 pt-4"><label className="flex items-center cursor-pointer select-none"><div className={`w-5 h-5 rounded border flex items-center justify-center mr-2 ${guest.transfer ? 'bg-[#936142] border-[#936142]' : 'border-[#CCBBA9]'}`}>{guest.transfer && <CheckSquare size={12} color="white"/>}</div><input type="checkbox" className="hidden" checked={guest.transfer} onChange={(e) => updateGuest(guest.id, 'transfer', e.target.checked)} /><span className="text-sm text-[#414942]">Трансфер</span></label></div><div className="hidden md:flex md:col-span-1 justify-end pt-4"><button onClick={() => removeGuest(guest.id)} className="text-[#CCBBA9] hover:text-red-400 transition-colors"><Trash2 size={18}/></button></div></div><div className="mt-4 pt-4 border-t border-[#F9F7F5]"><input className="w-full text-sm text-[#414942] italic bg-transparent outline-none" placeholder="Заметки к гостю..." value={guest.comment} onChange={(e) => updateGuest(guest.id, 'comment', e.target.value)} /></div></Card>))}</div>
-      </div>
-  )
+          <div className="grid gap-4 print:hidden">{guests.map((guest, idx) => (<Card key={guest.id} className="p-6 transition-all hover:shadow-md"><div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start"><div className="flex items-center justify-between w-full md:w-auto md:col-span-1 md:justify-center md:h-full"><span className="w-8 h-8 rounded-full bg-[#CCBBA9]/30 text-[#936142] flex items-center justify-center font-bold text-sm">{idx + 1}</span><button onClick={() => removeGuest(guest.id)} className="md:hidden text-[#CCBBA9] hover:text-red-400 transition-colors"><Trash2 size={18}/></button></div><div className="w-full md:col-span-3"><label className="text-[10px] uppercase text-[#CCBBA9] font-bold">ФИО</label><input className="w-full text-lg font-medium text-[#414942] bg-transparent border-b border-transparent focus:border-[#AC8A69] outline-none" placeholder="Имя гостя" value={guest.name} onChange={(e) => updateGuest(guest.id, 'name', e.target.value)} /></div><div className="w-1/2 md:w-full md:col-span-2"><label className="text-[10px] uppercase text-[#CCBBA9] font-bold">Стол №</label><input className="w-full bg-transparent border-b border-[#EBE5E0] focus:border-[#AC8A69] outline-none py-1" value={guest.table} onChange={(e) => updateGuest(guest.id, 'table', e.target.value)} /></div><div className="w-full md:col-span-3"><label className="text-[10px] uppercase text-[#CCBBA9] font-bold">Пожелания</label><input className="w-full text-sm bg-transparent border-b border-[#EBE5E0] outline-none py-1 mb-1" placeholder="Еда..." value={guest.food} onChange={(e) => updateGuest(guest.id, 'food', e.target.value)} /><input className="w-full text-sm bg-transparent border-b border-[#EBE5E0] outline-none py-1" placeholder="Напитки..." value={guest.drinks} onChange={(e) => updateGuest(guest.id, 'drinks', e.target.value)} /></div><div className="w-full md:col-span-2 flex items-center gap-2 pt-4"><label className="flex items-center cursor-pointer select-none"><div className={`w-5 h-5 rounded border flex items-center justify-center mr-2 ${guest.transfer ? 'bg-[#936142] border-[#936142]' : 'border-[#CCBBA9]'}`}>{guest.transfer && <CheckSquare size={12} color="white"/>}</div><input type="checkbox" className="hidden" checked={guest.transfer} onChange={(e) => updateGuest(guest.id, 'transfer', e.target.checked)} /><span className="text-sm text-[#414942]">Трансфер</span></label></div><div className="hidden md:flex md:col-span-1 justify-end pt-4"><button onClick={() => removeGuest(guest.id)} className="text-[#CCBBA9] hover:text-red-400 transition-colors"><Trash2 size={18}/></button></div></div></Card>))}</div></div> );
 };
 
 const TimingView = ({ timing, updateProject, downloadCSV }) => {
@@ -320,7 +322,12 @@ export default function WeddingPlanner() {
     const urlParams = new URLSearchParams(window.location.search);
     const projectIdFromUrl = urlParams.get('id');
 
-    const unsubscribeProjects = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), (snapshot) => {
+    let q = collection(db, 'artifacts', appId, 'public', 'data', 'projects');
+    if (user.role === 'client') {
+        q = query(q, where('id', '==', user.projectId));
+    }
+
+    const unsubscribeProjects = onSnapshot(q, (snapshot) => {
       const allProjects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
       if (projectIdFromUrl && !user && view !== 'client_login') {
@@ -432,9 +439,9 @@ export default function WeddingPlanner() {
   };
 
   // --- VIEWS ---
-  if (view === 'client_login') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center"><Heart size={48} className="text-[#936142] mx-auto mb-6" /><h2 className="text-2xl font-serif text-[#414942] mb-2">{currentProject?.groomName} & {currentProject?.brideName}</h2><p className="text-[#AC8A69] mb-8">Введите пароль для доступа</p><Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} /><Button className="w-full" onClick={handleClientLinkLogin}>Войти</Button></div><Footer/></div>);
+  if (view === 'client_login') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center"><Logo className="h-16 mx-auto mb-6" /><h2 className="text-2xl font-serif text-[#414942] mb-2">{currentProject?.groomName} & {currentProject?.brideName}</h2><p className="text-[#AC8A69] mb-8">Введите пароль для доступа</p><Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} /><Button className="w-full" onClick={handleClientLinkLogin}>Войти</Button></div><Footer/></div>);
   if (view === 'recovery') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><h2 className="text-2xl font-bold text-[#414942] mb-4 text-center">Восстановление</h2><Input placeholder="Email" value={recoveryEmail} onChange={e => setRecoveryEmail(e.target.value)} /><Input placeholder="Секретное слово" value={recoverySecret} onChange={e => setRecoverySecret(e.target.value)} /><Input placeholder="Новый пароль" type="password" value={recoveryNewPass} onChange={e => setRecoveryNewPass(e.target.value)} /><Button className="w-full" onClick={handleRecovery}>Сменить пароль</Button><button onClick={() => setView('login')} className="w-full text-center text-sm text-[#AC8A69] mt-4">Назад ко входу</button></div><Footer/></div>);
-  if (view === 'login') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="mb-8 text-center"><h1 className="text-4xl font-bold text-[#414942] tracking-tight mb-2">{APP_TITLE}</h1><p className="text-[#AC8A69]">Система управления свадьбами</p></div><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><Input placeholder="Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} onKeyDown={handleKeyDown}/><Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} onKeyDown={handleKeyDown}/><Button className="w-full" onClick={handleLogin}>Войти</Button><button onClick={() => setView('recovery')} className="w-full text-center text-xs text-[#AC8A69] hover:underline mt-4 block">Забыли пароль?</button></div><Footer/></div>);
+  if (view === 'login') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-start pt-24 md:justify-center md:pt-0 p-6"><div className="mb-8 text-center"><Logo className="h-16 mx-auto mb-4" /><p className="text-[#AC8A69]">Система управления свадьбами</p></div><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><Input placeholder="Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} onKeyDown={handleKeyDown}/><Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} onKeyDown={handleKeyDown}/><Button className="w-full" onClick={handleLogin}>Войти</Button><button onClick={() => setView('recovery')} className="w-full text-center text-xs text-[#AC8A69] hover:underline mt-4 block">Забыли пароль?</button></div><Footer/></div>);
   
   const sortedProjects = [...projects].filter(p => dashboardTab === 'active' ? !p.isArchived : p.isArchived).sort((a, b) => new Date(a.date) - new Date(b.date));
 
@@ -444,7 +451,7 @@ export default function WeddingPlanner() {
         <div className="max-w-6xl mx-auto w-full flex-1">
           <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
             <div>
-                <h1 className="text-4xl md:text-5xl font-bold text-[#414942] tracking-tight">{APP_TITLE}</h1>
+                <Logo className="h-12" />
                 <div className="flex items-center gap-4 mt-2">
                     <button onClick={() => setShowProfile(true)} className="text-[#AC8A69] hover:text-[#936142] flex items-center gap-2">Кабинет: {user?.name} <Edit3 size={14}/></button>
                 </div>
@@ -506,7 +513,7 @@ export default function WeddingPlanner() {
       <div className="w-full min-h-screen h-auto overflow-visible bg-[#F9F7F5] font-[Montserrat]">
          <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-[#EBE5E0] print:hidden">
             <div className="max-w-7xl mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
-                <div className="flex items-center gap-2 md:gap-4">{user.role !== 'client' && <button onClick={() => setView('dashboard')} className="p-2 hover:bg-[#F9F7F5] rounded-full transition-colors text-[#AC8A69]"><ChevronLeft /></button>}<span className="text-lg md:text-xl font-bold text-[#936142] tracking-tight whitespace-nowrap">{APP_TITLE}</span></div>
+                <div className="flex items-center gap-2 md:gap-4">{user.role !== 'client' && <button onClick={() => setView('dashboard')} className="p-2 hover:bg-[#F9F7F5] rounded-full transition-colors text-[#AC8A69]"><ChevronLeft /></button>}<Logo className="h-8 md:h-10" /></div>
                 <div className="hidden md:flex gap-1 bg-[#F9F7F5] p-1 rounded-xl">
                     {['overview', 'tasks', 'budget', 'guests', 'timing', 'notes'].map(tab => (
                         <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? 'bg-white text-[#936142] shadow-sm' : 'text-[#CCBBA9] hover:text-[#414942]'}`}>{tab === 'overview' ? 'Обзор' : tab === 'tasks' ? 'Задачи' : tab === 'budget' ? 'Смета' : tab === 'guests' ? 'Гости' : tab === 'timing' ? 'Тайминг' : 'Заметки'}</button>
@@ -559,7 +566,6 @@ export default function WeddingPlanner() {
                             <Input label="Дата" type="date" value={currentProject.date} onChange={(e) => updateProject('date', e.target.value)} />
                             <Input label="Гостей" type="number" value={currentProject.guestsCount} onChange={(e) => updateProject('guestsCount', e.target.value)} />
                             <Input label="Локация" value={currentProject.venueName} onChange={(e) => updateProject('venueName', e.target.value)} />
-                            {user.role === 'owner' && <Input label="Организатор" value={currentProject.organizerName} onChange={(e) => updateProject('organizerName', e.target.value)} />}
                         </div>
                         <div className="flex flex-col gap-2 mt-8">
                             <Button onClick={() => setIsEditingProject(false)} variant="primary" className="w-full">Сохранить</Button>
