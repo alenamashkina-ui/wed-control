@@ -13,18 +13,12 @@ import {
   deleteDoc, doc, onSnapshot, query, where, getDocs 
 } from "firebase/firestore";
 
-// --- IMPORTS ---
-import { 
-  SITE_URL, APP_TITLE, LOGO_URL, firebaseConfig, APP_ID_DB,
-  COLORS, VENDOR_CATEGORIES, INITIAL_EXPENSES, INITIAL_TIMING, 
-  TASK_TEMPLATES, INITIAL_FORM_STATE 
-} from './constants';
+// --- CORE ---
+import { auth, db, appId } from './firebase';
+import { SITE_URL, INITIAL_FORM_STATE, TASK_TEMPLATES, INITIAL_EXPENSES, INITIAL_TIMING } from './constants';
+import { formatDate, toInputDate, getDaysUntil, formatCurrency, downloadCSV } from './utils';
 
-import { 
-  formatDate, toInputDate, getDaysUntil, formatCurrency, downloadCSV 
-} from './utils';
-
-// --- UI IMPORTS ---
+// --- UI COMPONENTS ---
 import { Button } from './components/ui/Button';
 import { Card } from './components/ui/Card';
 import { Input, MoneyInput, AutoHeightTextarea, Checkbox } from './components/ui/Forms';
@@ -46,11 +40,6 @@ import { OrganizersView } from './components/admin/OrganizersView';
 import { SuperAdminView } from './components/admin/SuperAdminView';
 import { VendorsView } from './components/admin/VendorsView';
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = APP_ID_DB;
-
 export default function WeddingPlanner() {
   const [user, setUser] = useState(null); 
   const [authUser, setAuthUser] = useState(null);
@@ -62,6 +51,9 @@ export default function WeddingPlanner() {
   const [dashboardTab, setDashboardTab] = useState('active');
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [organizersList, setOrganizersList] = useState([]);
+  
+  // ВОТ ОНА, ПОТЕРЯННАЯ СТРОКА 👇
+  const [isCreating, setIsCreating] = useState(false);
   const [isLoginLoading, setIsLoginLoading] = useState(false);
     
   const [loginEmail, setLoginEmail] = useState('');
@@ -228,7 +220,7 @@ export default function WeddingPlanner() {
 
   // --- RENDER VIEWS ---
   if (view === 'client_login') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center"><Logo className="h-24 mx-auto mb-6" /><h2 className="text-2xl font-serif text-[#414942] mb-2">{currentProject?.groomName} & {currentProject?.brideName}</h2><p className="text-[#AC8A69] mb-8">Введите пароль</p><Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} /><Button className="w-full" onClick={handleClientLinkLogin}>Войти</Button></div><Footer/></div>);
-  if (view === 'recovery') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><h2 className="text-2xl font-bold text-[#414942] mb-4 text-center">Восстановление</h2><Input placeholder="Email" value={recoveryEmail} onChange={e => setRecoveryEmail(e.target.value)} /><Input placeholder="Секретное слово" value={recoverySecret} onChange={e => setRecoverySecret(e.target.value)} /><Input placeholder="Новый пароль" type="password" value={recoveryNewPass} onChange={e => setRecoveryNewPass(e.target.value)} /><Button className="w-full" onClick={handleRecovery}>Сменить пароль</Button><button onClick={() => setView('login')} className="w-full text-center text-sm text-[#AC8A69] mt-4">Назад</button></div><Footer/></div>);
+  if (view === 'recovery') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><h2 className="text-2xl font-bold text-[#414942] mb-4 text-center">Восстановление</h2><Input placeholder="Email" value={recoveryEmail} onChange={e => setRecoveryEmail(e.target.value)} /><Input placeholder="Секретное слово" value={recoverySecret} onChange={e => setRecoverySecret(e.target.value)} /><Input placeholder="Новый пароль" type="password" value={recoveryNewPass} onChange={e => setRecoveryNewPass(e.target.value)} /><Button className="w-full" onClick={handleRecovery}>Сменить пароль</Button><button onClick={() => setView('login')} className="w-full text-center text-sm text-[#AC8A69] mt-4">Назад ко входу</button></div><Footer/></div>);
   if (view === 'login') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-start pt-[100px] p-6"><div className="mb-8 text-center"><Logo className="h-32 mx-auto mb-4" /><p className="text-[#AC8A69]">Система управления свадьбами</p></div><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><Input placeholder="Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}/><Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}/><Button className="w-full" onClick={handleLogin} disabled={isLoginLoading}>{isLoginLoading?'Вход...':'Войти'}</Button><button onClick={() => setView('recovery')} className="w-full text-center text-xs text-[#AC8A69] hover:underline mt-4 block">Забыли пароль?</button></div><Footer/></div>);
   
   if (view === 'create') return <CreateView formData={formData} setFormData={setFormData} handleCreateProject={handleCreateProject} setView={setView} user={user} organizersList={organizersList} />;
