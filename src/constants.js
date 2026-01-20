@@ -2,8 +2,11 @@ import { Home, Camera, Video, Music, Scissors, Heart, Coffee, Briefcase } from '
 
 export const SITE_URL = 'https://wed-control.vercel.app'; 
 export const APP_TITLE = 'ParaPlanner';
-// НОВЫЙ ЛОГОТИП (обрезанный)
-export const LOGO_URL = 'https://optim.tildacdn.com/tild6364-6234-4133-b738-393861303838/-/format/webp/Remove_background_fr.png.webp';
+// ОБНОВЛЕННЫЙ ЛОГОТИП
+export const LOGO_URL = 'https://optim.tildacdn.com/tild3963-3763-4632-a531-353431666665/-/format/webp/Remove_background_fr.webp';
+
+// --- КОНТАКТ ПОДДЕРЖКИ (Замени на свою ссылку!) ---
+export const SUPPORT_CONTACT = 'https://t.me/alena_mashkina'; 
 
 // --- FIREBASE CONFIG ---
 export const firebaseConfig = {
@@ -133,7 +136,7 @@ export const TASK_TEMPLATES = [
   { text: 'Организовать девичник', pos: 0.80 },
   { text: 'Организовать мальчишник', pos: 0.82 },
   { text: 'Продумать образы на сборы в день свадьбы', pos: 0.84 },
-  { text: 'Выбрать школу танцев, музыкальную композицию и разучите вместе с хореографом свадебный танец', pos: 0.86 },
+  { text: 'Выбрать школу танцев, музыкальную композицию и разучить вместе с хореографом свадебный танец', pos: 0.86 },
   { text: 'Провести опрос гостей об их присутствии на свадьбе, пожеланиях по еде и напиткам и необходимости места в автобусе', pos: 0.88 },
   { text: 'Забронировать отель для приезжих гостей', pos: 0.90 },
   { text: 'Забронировать автобусы для гостей', pos: 0.92 },
