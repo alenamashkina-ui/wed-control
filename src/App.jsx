@@ -13,20 +13,22 @@ import {
   deleteDoc, doc, onSnapshot, query, where, getDocs 
 } from "firebase/firestore";
 
-// --- CORE ---
-import { auth, db, appId } from './firebase';
-import { SITE_URL, INITIAL_FORM_STATE, TASK_TEMPLATES, INITIAL_EXPENSES, INITIAL_TIMING } from './constants';
-import { formatDate, toInputDate, getDaysUntil, formatCurrency, downloadCSV } from './utils';
+import { 
+  SITE_URL, APP_TITLE, LOGO_URL, firebaseConfig, APP_ID_DB,
+  COLORS, VENDOR_CATEGORIES, INITIAL_EXPENSES, INITIAL_TIMING, 
+  TASK_TEMPLATES, INITIAL_FORM_STATE, OUTDOOR_TASKS, OUTDOOR_EXPENSE 
+} from './constants';
 
-// --- UI COMPONENTS ---
+import { 
+  formatDate, toInputDate, getDaysUntil, formatCurrency, downloadCSV 
+} from './utils';
+
 import { Button } from './components/ui/Button';
 import { Card } from './components/ui/Card';
-import { Input, MoneyInput, AutoHeightTextarea, Checkbox } from './components/ui/Forms';
+import { Input } from './components/ui/Forms';
 import { Logo } from './components/ui/Logo';
-import { DownloadMenu } from './components/ui/DownloadMenu';
 import { Footer } from './components/common/Footer';
 
-// --- VIEWS ---
 import { TasksView } from './components/project/TasksView';
 import { TimingView } from './components/project/TimingView';
 import { BudgetView } from './components/project/BudgetView';
@@ -34,11 +36,14 @@ import { GuestsView } from './components/project/GuestsView';
 import { NotesView } from './components/project/NotesView';
 import { CreateView } from './components/project/CreateView';
 import { SettingsModal } from './components/project/SettingsModal';
-
-// --- ADMIN VIEWS ---
 import { OrganizersView } from './components/admin/OrganizersView';
 import { SuperAdminView } from './components/admin/SuperAdminView';
 import { VendorsView } from './components/admin/VendorsView';
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = APP_ID_DB;
 
 export default function WeddingPlanner() {
   const [user, setUser] = useState(null); 
@@ -51,9 +56,6 @@ export default function WeddingPlanner() {
   const [dashboardTab, setDashboardTab] = useState('active');
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [organizersList, setOrganizersList] = useState([]);
-  
-  // ВОТ ОНА, ПОТЕРЯННАЯ СТРОКА 👇
-  const [isCreating, setIsCreating] = useState(false);
   const [isLoginLoading, setIsLoginLoading] = useState(false);
     
   const [loginEmail, setLoginEmail] = useState('');
@@ -66,6 +68,7 @@ export default function WeddingPlanner() {
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [recoverySecret, setRecoverySecret] = useState('');
   const [recoveryNewPass, setRecoveryNewPass] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
   // 1. History API
   useEffect(() => {
@@ -73,9 +76,7 @@ export default function WeddingPlanner() {
         const params = new URLSearchParams(window.location.search);
         const id = params.get('id');
         if (id) {
-            if (currentProject && currentProject.id === id) {
-                // Stay on project
-            }
+            if (currentProject && currentProject.id === id) { }
         } else {
             if (view !== 'login' && view !== 'recovery') {
                 setView('dashboard');
@@ -126,20 +127,18 @@ export default function WeddingPlanner() {
     if (!authUser || !user) return;
     let q;
     if (user.role === 'super_admin') {
-        q = collection(db, 'artifacts', appId, 'public', 'data', 'projects');
+        q = query(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), where('organizerId', '==', user.id));
     } else if (user.agencyId) {
         q = query(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), where('agencyId', '==', user.agencyId));
     } else if (user.role === 'client') {
         q = query(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), where('id', '==', user.projectId));
     } else {
-        q = collection(db, 'artifacts', appId, 'public', 'data', 'projects'); 
+        q = query(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), where('organizerId', '==', user.id)); 
     }
-
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const allProjects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       const urlParams = new URLSearchParams(window.location.search);
       const projectIdFromUrl = urlParams.get('id');
-
       if (projectIdFromUrl && !user && view !== 'client_login') {
           const targetProject = allProjects.find(p => p.id === projectIdFromUrl);
           if (targetProject) { setCurrentProject(targetProject); setView('client_login'); }
@@ -149,7 +148,6 @@ export default function WeddingPlanner() {
       }
       setProjects(allProjects);
     });
-    
     if (user.role === 'agency_admin') {
         const orgQ = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('agencyId', '==', user.agencyId), where('role', '==', 'organizer'));
         onSnapshot(orgQ, (snap) => setOrganizersList(snap.docs.map(d => ({id: d.id, ...d.data()}))));
@@ -157,7 +155,6 @@ export default function WeddingPlanner() {
     return () => unsubscribe();
   }, [user, authUser, view]);
 
-  // 5. Active Project Sync
   useEffect(() => {
       if (!currentProject?.id || view !== 'project') return;
       const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id);
@@ -167,22 +164,40 @@ export default function WeddingPlanner() {
       return () => unsubscribe();
   }, [currentProject?.id, view]);
 
+  // --- УЛУЧШЕННЫЙ ЛОГИН ---
   const handleLogin = async () => {
-    if (!authUser) { alert("Нет соединения с сервером"); return; }
+    if (!authUser) { alert("Нет соединения с сервером Firebase"); return; }
     setIsLoginLoading(true);
     try {
         const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users'));
         const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const foundUser = users.find(u => u.email === loginEmail.toLowerCase().trim() && u.password === loginPass.trim());
+        
+        // 1. Очищаем ввод (Email маленькими, Пароль как есть, но без пробелов с краев)
+        const cleanInputEmail = loginEmail.toLowerCase().trim();
+        const cleanInputPass = String(loginPass).trim();
+
+        const foundUser = users.find(u => {
+            // 2. Очищаем данные из базы перед сравнением
+            const dbEmail = (u.email || '').toLowerCase().trim();
+            const dbPass = String(u.password || '').trim();
+            
+            // 3. Сравниваем (Регистр в пароле ВАЖЕН!)
+            return dbEmail === cleanInputEmail && dbPass === cleanInputPass;
+        });
+        
         if (foundUser) {
             const userData = { ...foundUser, agencyId: foundUser.agencyId || 'legacy_agency' };
             setUser(userData);
             localStorage.setItem('wed_user', JSON.stringify(userData));
-            setNewProfileEmail(foundUser.email); setNewProfilePass(foundUser.password); setNewProfileSecret(foundUser.secret || '');
+            setNewProfileEmail(foundUser.email); 
+            setNewProfilePass(foundUser.password); 
+            setNewProfileSecret(foundUser.secret || '');
             window.history.replaceState(null, '', '/');
             setView('dashboard');
-        } else { alert('Неверный Email или пароль'); }
-    } catch (e) { console.error(e); alert("Ошибка входа"); } finally { setIsLoginLoading(false); }
+        } else { 
+            alert('Неверный Email или пароль. Помните, что заглавные и строчные буквы отличаются.'); 
+        }
+    } catch (e) { console.error(e); alert("Ошибка входа: " + e.message); } finally { setIsLoginLoading(false); }
   };
 
   const handleLogout = () => { localStorage.removeItem('wed_user'); setUser(null); setView('login'); window.history.pushState(null, '', '/'); };
@@ -193,8 +208,31 @@ export default function WeddingPlanner() {
     setIsCreating(true);
     try {
         const creationDate = new Date(); const weddingDate = new Date(formData.date);
-        let projectTasks = TASK_TEMPLATES.map(t => ({ id: Math.random().toString(36).substr(2, 9), text: t.text, deadline: new Date(creationDate.getTime() + (weddingDate - creationDate) * t.pos).toISOString(), done: false })).sort((a,b)=>new Date(a.deadline)-new Date(b.deadline));
         
+        let rawTasks = [...TASK_TEMPLATES];
+        if (formData.registrationType === 'outdoor' || formData.registrationType === 'both') {
+            rawTasks = [...rawTasks, ...OUTDOOR_TASKS];
+        }
+
+        let projectTasks = rawTasks.map(t => ({ 
+            id: Math.random().toString(36).substr(2, 9), 
+            text: t.text, 
+            deadline: new Date(creationDate.getTime() + (weddingDate - creationDate) * t.pos).toISOString(), 
+            done: false 
+        })).sort((a,b)=>new Date(a.deadline)-new Date(b.deadline));
+        
+        const projectExpenses = INITIAL_EXPENSES.map(e => ({ ...e }));
+        if (formData.registrationType === 'outdoor' || formData.registrationType === 'both') {
+            const hostIndex = projectExpenses.findIndex(e => e.name === 'Ведущий + диджей');
+            if (hostIndex !== -1) {
+                projectExpenses.splice(hostIndex + 1, 0, { ...OUTDOOR_EXPENSE });
+            } else {
+                projectExpenses.push({ ...OUTDOOR_EXPENSE });
+            }
+        }
+        
+        const projectTiming = INITIAL_TIMING.map(t => ({ ...t, id: Math.random().toString(36).substr(2, 9) }));
+
         let finalOrgId = user.id; let finalOrgName = user.name;
         if (user.role === 'agency_admin' && formData.organizerId && formData.organizerId !== 'owner') { 
             const selectedOrg = organizersList.find(o => o.id === formData.organizerId); 
@@ -204,9 +242,15 @@ export default function WeddingPlanner() {
         const newProject = { 
             ...formData, 
             clientPassword: formData.clientPassword || Math.floor(1000+Math.random()*9000).toString(), 
-            tasks: projectTasks, expenses: [...INITIAL_EXPENSES], timing: INITIAL_TIMING.map(t=>({...t, id: Math.random().toString(36).substr(2,9)})), 
-            guests: [], notes: '', isArchived: false, organizerName: finalOrgName, organizerId: finalOrgId, agencyId: user.agencyId || 'legacy_agency', createdAt: new Date().toISOString() 
+            tasks: projectTasks, 
+            expenses: projectExpenses, 
+            timing: projectTiming, 
+            guests: [], notes: '', isArchived: false, 
+            organizerName: finalOrgName, organizerId: finalOrgId, 
+            agencyId: user.agencyId || 'legacy_agency', 
+            createdAt: new Date().toISOString() 
         };
+
         const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), newProject);
         setCurrentProject({ id: docRef.id, ...newProject }); setView('project'); setActiveTab('overview');
     } catch (e) { console.error(e); alert("Ошибка создания"); } finally { setIsCreating(false); }
@@ -218,13 +262,27 @@ export default function WeddingPlanner() {
   const updateUserProfile = async () => { if (!newProfileEmail.trim() || !newProfilePass.trim()) return; await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.id), { email: newProfileEmail.toLowerCase().trim(), password: newProfilePass.trim(), secret: newProfileSecret.trim() }); const updatedUser = {...user, email: newProfileEmail, password: newProfilePass, secret: newProfileSecret}; setUser(updatedUser); localStorage.setItem('wed_user', JSON.stringify(updatedUser)); alert('Данные обновлены'); setShowProfile(false); };
   const handleRecovery = async () => { const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users')); const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); const foundUser = users.find(u => u.email === recoveryEmail.toLowerCase().trim() && u.secret === recoverySecret.trim()); if (foundUser) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', foundUser.id), { password: recoveryNewPass.trim() }); alert("Пароль изменен!"); setView('login'); } else { alert("Неверные данные"); } };
 
-  // --- RENDER VIEWS ---
   if (view === 'client_login') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center"><Logo className="h-24 mx-auto mb-6" /><h2 className="text-2xl font-serif text-[#414942] mb-2">{currentProject?.groomName} & {currentProject?.brideName}</h2><p className="text-[#AC8A69] mb-8">Введите пароль</p><Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} /><Button className="w-full" onClick={handleClientLinkLogin}>Войти</Button></div><Footer/></div>);
-  if (view === 'recovery') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><h2 className="text-2xl font-bold text-[#414942] mb-4 text-center">Восстановление</h2><Input placeholder="Email" value={recoveryEmail} onChange={e => setRecoveryEmail(e.target.value)} /><Input placeholder="Секретное слово" value={recoverySecret} onChange={e => setRecoverySecret(e.target.value)} /><Input placeholder="Новый пароль" type="password" value={recoveryNewPass} onChange={e => setRecoveryNewPass(e.target.value)} /><Button className="w-full" onClick={handleRecovery}>Сменить пароль</Button><button onClick={() => setView('login')} className="w-full text-center text-sm text-[#AC8A69] mt-4">Назад ко входу</button></div><Footer/></div>);
-  if (view === 'login') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-start pt-[100px] p-6"><div className="mb-8 text-center"><Logo className="h-32 mx-auto mb-4" /><p className="text-[#AC8A69]">Система управления свадьбами</p></div><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><Input placeholder="Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}/><Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}/><Button className="w-full" onClick={handleLogin} disabled={isLoginLoading}>{isLoginLoading?'Вход...':'Войти'}</Button><button onClick={() => setView('recovery')} className="w-full text-center text-xs text-[#AC8A69] hover:underline mt-4 block">Забыли пароль?</button></div><Footer/></div>);
+  if (view === 'recovery') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><h2 className="text-2xl font-bold text-[#414942] mb-4 text-center">Восстановление</h2><Input placeholder="Email" value={recoveryEmail} onChange={e => setRecoveryEmail(e.target.value)} /><Input placeholder="Секретное слово" value={recoverySecret} onChange={e => setRecoverySecret(e.target.value)} /><Input placeholder="Новый пароль" type="password" value={recoveryNewPass} onChange={e => setRecoveryNewPass(e.target.value)} /><Button className="w-full" onClick={handleRecovery}>Сменить пароль</Button><button onClick={() => setView('login')} className="w-full text-center text-sm text-[#AC8A69] mt-4">Назад</button></div><Footer/></div>);
+  // ОБНОВЛЕННЫЙ ЭКРАН ВХОДА (ЛОГОТИП ВНУТРИ)
+  if (view === 'login') return (
+    <div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4">
+            <div className="text-center mb-6">
+                <Logo className="w-full h-auto mx-auto mb-4" />
+                <p className="text-[#AC8A69]">Система управления свадьбами</p>
+            </div>
+            <Input placeholder="Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}/>
+            <Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}/>
+            <Button className="w-full" onClick={handleLogin} disabled={isLoginLoading}>{isLoginLoading?'Вход...':'Войти'}</Button>
+            <button onClick={() => setView('recovery')} className="w-full text-center text-xs text-[#AC8A69] hover:underline mt-4 block">Забыли пароль?</button>
+        </div>
+        <Footer/>
+    </div>
+  );
   
   if (view === 'create') return <CreateView formData={formData} setFormData={setFormData} handleCreateProject={handleCreateProject} setView={setView} user={user} organizersList={organizersList} />;
-  if (view === 'manage_organizers') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]"><nav className="p-6 flex items-center gap-4"><button onClick={() => setView('dashboard')} className="p-2 hover:bg-white rounded-full text-[#AC8A69]"><ChevronLeft/></button><h1 className="text-xl font-bold text-[#414942]">Назад</h1></nav><OrganizersView currentUser={user} /></div>);
+  if (view === 'manage_organizers') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]"><nav className="p-6 flex items-center gap-4"><button onClick={() => setView('dashboard')} className="p-2 hover:bg-white rounded-full text-[#AC8A69]"><ChevronLeft/></button><h1 className="text-xl font-bold text-[#414942]">Назад</h1></nav><OrganizersView currentUser={user} db={db} /></div>);
   if (view === 'vendors_db') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]"><nav className="p-6 flex items-center gap-4"><button onClick={() => setView('dashboard')} className="p-2 hover:bg-white rounded-full text-[#AC8A69]"><ChevronLeft/></button><h1 className="text-xl font-bold text-[#414942]">Назад</h1></nav><VendorsView agencyId={user.agencyId} /></div>);
   if (view === 'super_admin') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]"><nav className="p-6 flex items-center gap-4"><button onClick={() => setView('dashboard')} className="p-2 hover:bg-white rounded-full text-[#AC8A69]"><ChevronLeft/></button><h1 className="text-xl font-bold text-[#414942]">Назад</h1></nav><SuperAdminView /></div>);
 
@@ -244,13 +302,12 @@ export default function WeddingPlanner() {
             </div>
             <div className="flex gap-2 w-full md:w-auto flex-wrap">
                 <Button onClick={() => { setFormData({...INITIAL_FORM_STATE, clientPassword: Math.floor(1000+Math.random()*9000).toString()}); setView('create'); window.scrollTo(0,0); }}><Plus size={20}/> Новый проект</Button>
-                {(user.role === 'agency_admin' || user.role === 'organizer') && <Button variant="secondary" onClick={() => setView('vendors_db')}><Briefcase size={20}/> База подрядчиков</Button>}
+                {user.role === 'organizer' && user.agencyId === 'legacy_agency' && <Button variant="secondary" onClick={() => setView('vendors_db')}><Briefcase size={20}/> База подрядчиков</Button>}
                 {user.role === 'agency_admin' && <Button variant="secondary" onClick={() => setView('manage_organizers')}><Users size={20}/> Команда</Button>}
                 {user.role === 'super_admin' && <Button variant="secondary" className="bg-[#414942] text-white hover:bg-[#2C332D]" onClick={() => setView('super_admin')}><Building size={20}/> Агентства</Button>}
                 <Button variant="ghost" onClick={handleLogout}><LogOut size={20}/></Button>
             </div>
           </header>
-            
           {showProfile && (
               <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4">
                   <Card className="w-full max-w-md p-6 relative">
@@ -268,13 +325,12 @@ export default function WeddingPlanner() {
                   </Card>
               </div>
           )}
-
           <div className="flex gap-4 mb-8 border-b border-[#EBE5E0]">
               <button onClick={() => setDashboardTab('active')} className={`pb-3 px-1 text-sm font-bold uppercase tracking-wider transition-all border-b-2 ${dashboardTab === 'active' ? 'border-[#936142] text-[#936142]' : 'border-transparent text-[#CCBBA9]'}`}>Активные проекты</button>
               <button onClick={() => setDashboardTab('archived')} className={`pb-3 px-1 text-sm font-bold uppercase tracking-wider transition-all border-b-2 ${dashboardTab === 'archived' ? 'border-[#936142] text-[#936142]' : 'border-transparent text-[#CCBBA9]'}`}>Архив</button>
           </div>
           {sortedProjects.length === 0 ? (
-             <div className="py-20 text-center text-[#CCBBA9]"><div className="inline-block p-4 rounded-full bg-[#EBE5E0]/50 mb-4">{dashboardTab === 'active' ? <Heart size={32} /> : <Archive size={32} />}</div><p className="text-lg">{dashboardTab === 'active' ? 'Нет активных проектов.' : 'Архив пуст.'}</p></div>
+             <div className="py-20 text-center text-[#CCBBA9]"><div className="inline-block p-4 rounded-full bg-[#EBE5E0]/50 mb-4">{dashboardTab === 'active' ? <Heart size={32} /> : <Briefcase size={32} />}</div><p className="text-lg">{dashboardTab === 'active' ? 'Нет активных проектов.' : 'Архив пуст.'}</p></div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {sortedProjects.map(p => (
@@ -283,7 +339,7 @@ export default function WeddingPlanner() {
                     <div className="relative z-10">
                         <div className="flex justify-between items-start mb-3"><p className="text-xs font-bold text-[#AC8A69] uppercase tracking-widest">{formatDate(p.date)}</p></div>
                         <h3 className="text-2xl font-serif text-[#414942] mb-1">{p.groomName} & {p.brideName}</h3>
-                        <p className="text-[#CCBBA9] text-sm mb-6">{p.venueName || 'Локация не выбрана'}</p>
+                        <p className="text-sm text-[#CCBBA9] mb-6">{p.venueName || 'Локация не выбрана'}</p>
                         <div className="flex items-center justify-between mt-8 border-t border-[#F9F7F5] pt-4"><div><p className="text-[10px] text-[#CCBBA9] uppercase">Организатор</p><p className="text-xs text-[#AC8A69] font-bold">{p.organizerName || 'Не назначен'}</p></div><span className="text-[#936142] group-hover:translate-x-1 transition-transform"><ArrowRight size={20}/></span></div>
                     </div>
                 </div>
@@ -319,18 +375,9 @@ export default function WeddingPlanner() {
                  {['overview', 'tasks', 'budget', 'guests', 'timing', 'notes'].map(tab => (<button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all inline-block mr-2 ${activeTab === tab ? 'bg-white text-[#936142] shadow-sm ring-1 ring-[#936142]/10' : 'text-[#CCBBA9]'}`}>{tab === 'overview' ? 'Обзор' : tab === 'tasks' ? 'Задачи' : tab === 'budget' ? 'Смета' : tab === 'guests' ? 'Гости' : tab === 'timing' ? 'Тайминг' : 'Заметки'}</button>))}
             </div>
          </nav>
-
          {isEditingProject && user.role !== 'client' && (
-             <SettingsModal 
-                project={currentProject} 
-                updateProject={updateProject} 
-                onClose={() => setIsEditingProject(false)} 
-                toggleArchive={toggleArchiveProject} 
-                deleteProject={deleteProject} 
-                downloadCSV={downloadCSV}
-             />
+             <SettingsModal project={currentProject} updateProject={updateProject} onClose={() => setIsEditingProject(false)} toggleArchive={toggleArchiveProject} deleteProject={deleteProject} downloadCSV={downloadCSV} />
          )}
-
          <main className="max-w-7xl mx-auto p-4 md:p-12 animate-fadeIn pb-24 print:p-0">
             {activeTab === 'overview' && (
                 <div className="space-y-6 md:space-y-8 pb-10">

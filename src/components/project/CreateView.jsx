@@ -3,7 +3,6 @@ import { ChevronLeft, Plus } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Forms';
-import { VENDOR_CATEGORIES } from '../../constants';
 
 export const CreateView = ({ formData, setFormData, handleCreateProject, setView, user, organizersList }) => {
   return (
@@ -17,6 +16,24 @@ export const CreateView = ({ formData, setFormData, handleCreateProject, setView
                 <Input label="Имя Жениха" value={formData.groomName} onChange={e => setFormData({...formData, groomName: e.target.value})} placeholder="Александр" />
                 <Input label="Имя Невесты" value={formData.brideName} onChange={e => setFormData({...formData, brideName: e.target.value})} placeholder="Екатерина" />
                 <Input label="Дата свадьбы" type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
+                
+                {/* --- ВЕРНУЛИ ПОЛЕ ТИП РЕГИСТРАЦИИ --- */}
+                <div className="bg-[#F9F7F5] p-3 rounded-xl border border-[#AC8A69]/30">
+                     <label className="block text-[10px] font-bold text-[#AC8A69] uppercase tracking-wider mb-2 ml-1">Тип регистрации</label>
+                     <select 
+                        className="w-full bg-transparent text-[#414942] outline-none border-none p-1"
+                        value={formData.registrationType}
+                        onChange={e => setFormData({...formData, registrationType: e.target.value})}
+                     >
+                        <option value="official">Только ЗАГС</option>
+                        <option value="outdoor">Выездная регистрация</option>
+                        <option value="both">И ЗАГС, и Выездная</option>
+                     </select>
+                </div>
+
+                {/* --- ВЕРНУЛИ ПОЛЕ МЕСТО СВАДЬБЫ --- */}
+                <Input label="Место свадьбы (Банкет)" value={formData.venueName} onChange={e => setFormData({...formData, venueName: e.target.value})} placeholder="Название площадки или ресторана" />
+
                 <Input label="Пароль для пары (для входа)" value={formData.clientPassword} onChange={e => setFormData({...formData, clientPassword: e.target.value})} />
                 
                 {user.role === 'agency_admin' && (
