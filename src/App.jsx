@@ -64,7 +64,6 @@ export default function WeddingPlanner() {
   const [organizersList, setOrganizersList] = useState([]);
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   
-  // Сортировка есть, но UI будет компактным
   const [sortBy, setSortBy] = useState('date'); 
     
   const [loginEmail, setLoginEmail] = useState('');
@@ -290,8 +289,6 @@ export default function WeddingPlanner() {
                   <button onClick={() => setDashboardTab('active')} className={`pb-3 px-1 text-sm font-bold uppercase tracking-wider transition-all border-b-2 ${dashboardTab === 'active' ? 'border-[#936142] text-[#936142]' : 'border-transparent text-[#CCBBA9]'}`}>Активные проекты</button>
                   <button onClick={() => setDashboardTab('archived')} className={`pb-3 px-1 text-sm font-bold uppercase tracking-wider transition-all border-b-2 ${dashboardTab === 'archived' ? 'border-[#936142] text-[#936142]' : 'border-transparent text-[#CCBBA9]'}`}>Архив</button>
               </div>
-              
-              {/* Сортировка */}
               <div className="flex items-center gap-2 pb-2">
                     <div className="relative group">
                         <div className="flex items-center gap-1 cursor-pointer text-[#CCBBA9] hover:text-[#936142] transition-colors">
@@ -380,11 +377,15 @@ export default function WeddingPlanner() {
                 </div>
             )}
             {activeTab === 'tasks' && <TasksView tasks={currentProject.tasks} updateProject={updateProject} formatDate={formatDate} project={currentProject} />}
-            {/* ТЕПЕРЬ СЮДА ТОЖЕ ПЕРЕДАЕМ PROJECT, ЧТОБЫ В СМЕТЕ БЫЛИ ИМЕНА И ДАТА */}
+            {/* ТЕПЕРЬ СЮДА ПЕРЕДАЕМ PROJECT */}
             {activeTab === 'budget' && <BudgetView expenses={currentProject.expenses} updateProject={updateProject} project={currentProject} />}
             
-            {activeTab === 'guests' && <GuestsView guests={currentProject.guests} updateProject={updateProject} downloadCSV={downloadCSV} />}
-            {activeTab === 'timing' && <TimingView timing={currentProject.timing} updateProject={updateProject} downloadCSV={downloadCSV} />}
+            {/* ТЕПЕРЬ СЮДА ТОЖЕ ПЕРЕДАЕМ PROJECT */}
+            {activeTab === 'guests' && <GuestsView guests={currentProject.guests} updateProject={updateProject} project={currentProject} />}
+            
+            {/* И СЮДА НА БУДУЩЕЕ */}
+            {activeTab === 'timing' && <TimingView timing={currentProject.timing} updateProject={updateProject} project={currentProject} downloadCSV={downloadCSV} />}
+            
             {activeTab === 'notes' && <NotesView notes={currentProject.notes} updateProject={updateProject} />}
          </main>
       </div>
