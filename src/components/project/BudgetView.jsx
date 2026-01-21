@@ -12,8 +12,9 @@ import { DownloadMenu } from '../ui/DownloadMenu';
 import { formatCurrency } from '../../utils';
 
 export const BudgetView = ({ expenses, updateProject, project }) => {
-  // Состояние для отслеживания активного поля (для исчезающего нуля)
-  const [activeField, setActiveField] = useState({ id: null, field: null });
+  // Состояние для отслеживания активного поля (чтобы ноль исчезал правильно)
+  // Используем индекс (index), так как он есть всегда
+  const [activeField, setActiveField] = useState({ index: null, field: null });
 
   // 1. Расчет итогов
   const totals = useMemo(() => {
@@ -24,23 +25,19 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
     }), { plan: 0, fact: 0, paid: 0 });
   }, [expenses]);
 
-  // 2. Управление данными (ТЕПЕРЬ ПО ID, А НЕ ПО ИНДЕКСУ)
-  const updateExpense = (id, field, val) => {
-    const newExpenses = expenses.map(item => {
-        if (item.id === id) {
-            // Если поле числовое, сохраняем как число, иначе как строку
-            const cleanVal = (field === 'plan' || field === 'fact' || field === 'paid') ? Number(val) : val;
-            return { ...item, [field]: cleanVal };
-        }
-        return item;
-    });
+  // 2. Управление данными (ПО ИНДЕКСУ - ЭТО САМОЕ НАДЕЖНОЕ)
+  const updateExpense = (index, field, val) => {
+    const newExpenses = [...expenses];
+    // Если поле числовое, сохраняем как число, иначе как строку
+    const cleanVal = (field === 'plan' || field === 'fact' || field === 'paid') ? Number(val) : val;
+    newExpenses[index] = { ...newExpenses[index], [field]: cleanVal };
     updateProject('expenses', newExpenses);
   };
 
   const addExpense = () => {
     // ДОБАВЛЯЕМ В НАЧАЛО СПИСКА
     const newItem = { 
-        id: Math.random().toString(36).substr(2, 9),
+        id: Math.random().toString(36).substr(2, 9), // ID на будущее, но логика на индексах
         category: 'Новое', 
         name: 'Новая статья', 
         plan: 0, 
@@ -48,24 +45,24 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
         paid: 0, 
         note: '' 
     };
-    // Новый элемент + старые элементы
     updateProject('expenses', [newItem, ...expenses]);
   };
 
-  const removeExpense = (id) => {
+  const removeExpense = (index) => {
     if (window.confirm('Удалить статью?')) {
-        const newExpenses = expenses.filter(item => item.id !== id);
+        const newExpenses = [...expenses];
+        newExpenses.splice(index, 1); // Удаляем по индексу
         updateProject('expenses', newExpenses);
     }
   };
 
   // 3. Логика фокуса (исчезающий ноль)
-  const handleFocus = (id, field) => {
-    setActiveField({ id, field });
+  const handleFocus = (index, field) => {
+    setActiveField({ index, field });
   };
 
   const handleBlur = () => {
-    setActiveField({ id: null, field: null });
+    setActiveField({ index: null, field: null });
   };
 
   // 4. Логика экспорта
@@ -253,15 +250,15 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EBE5E0] print:divide-[#CCBBA9]">
-              {expenses.map((item) => (
-                <tr key={item.id} className="hover:bg-[#F9F7F5]/50 group print:break-inside-avoid">
+              {expenses.map((item, idx) => (
+                <tr key={item.id || idx} className="hover:bg-[#F9F7F5]/50 group print:break-inside-avoid">
                   
                   {/* НАЗВАНИЕ */}
                   <td className="p-2 md:p-4 align-top">
                     <AutoHeightTextarea 
                         className="w-full bg-transparent outline-none font-medium text-[#414942] text-sm md:text-base whitespace-normal min-h-[1.5rem]" 
                         value={item.name} 
-                        onChange={(e) => updateExpense(item.id, 'name', e.target.value)} 
+                        onChange={(e) => updateExpense(idx, 'name', e.target.value)} 
                     />
                   </td>
                   
@@ -269,9 +266,9 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
                   <td className="p-2 md:p-4 align-top">
                     <input 
                         type="number" 
-                        value={activeField.id === item.id && activeField.field === 'plan' && item.plan === 0 ? '' : item.plan} 
-                        onChange={(e) => updateExpense(item.id, 'plan', e.target.value)}
-                        onFocus={() => handleFocus(item.id, 'plan')}
+                        value={activeField.index === idx && activeField.field === 'plan' && item.plan === 0 ? '' : item.plan} 
+                        onChange={(e) => updateExpense(idx, 'plan', e.target.value)}
+                        onFocus={() => handleFocus(idx, 'plan')}
                         onBlur={() => handleBlur()}
                         onWheel={(e) => e.target.blur()} 
                         className="w-full bg-transparent outline-none text-[#414942] text-sm md:text-base placeholder-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -282,9 +279,9 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
                   <td className="p-2 md:p-4 align-top">
                     <input 
                         type="number"
-                        value={activeField.id === item.id && activeField.field === 'fact' && item.fact === 0 ? '' : item.fact} 
-                        onChange={(e) => updateExpense(item.id, 'fact', e.target.value)}
-                        onFocus={() => handleFocus(item.id, 'fact')}
+                        value={activeField.index === idx && activeField.field === 'fact' && item.fact === 0 ? '' : item.fact} 
+                        onChange={(e) => updateExpense(idx, 'fact', e.target.value)}
+                        onFocus={() => handleFocus(idx, 'fact')}
                         onBlur={() => handleBlur()}
                         onWheel={(e) => e.target.blur()}
                         className="w-full bg-transparent outline-none text-[#414942] text-sm md:text-base placeholder-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -295,9 +292,9 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
                   <td className="p-2 md:p-4 align-top">
                     <input 
                         type="number"
-                        value={activeField.id === item.id && activeField.field === 'paid' && item.paid === 0 ? '' : item.paid} 
-                        onChange={(e) => updateExpense(item.id, 'paid', e.target.value)}
-                        onFocus={() => handleFocus(item.id, 'paid')}
+                        value={activeField.index === idx && activeField.field === 'paid' && item.paid === 0 ? '' : item.paid} 
+                        onChange={(e) => updateExpense(idx, 'paid', e.target.value)}
+                        onFocus={() => handleFocus(idx, 'paid')}
                         onBlur={() => handleBlur()}
                         onWheel={(e) => e.target.blur()}
                         className="w-full bg-transparent outline-none text-[#414942] text-sm md:text-base placeholder-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -315,13 +312,13 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
                         className="w-full bg-transparent outline-none text-xs text-[#AC8A69] placeholder-[#CCBBA9] min-h-[1.5rem]" 
                         placeholder="..." 
                         value={item.note || ''} 
-                        onChange={(e) => updateExpense(item.id, 'note', e.target.value)} 
+                        onChange={(e) => updateExpense(idx, 'note', e.target.value)} 
                     />
                   </td>
                   
                   {/* УДАЛЕНИЕ */}
                   <td className="p-2 md:p-4 align-top print:hidden">
-                    <button onClick={() => removeExpense(item.id)} className="text-red-300 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => removeExpense(idx)} className="text-red-300 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         <Trash2 size={16} />
                     </button>
                   </td>
