@@ -29,7 +29,10 @@ export const TasksView = ({ tasks, updateProject, formatDate, project }) => {
       deadline: new Date().toISOString(), 
       done: false
     };
+    // Добавляем В НАЧАЛО массива ([newTask, ...tasks])
     updateProject('tasks', [newTask, ...tasks]);
+    
+    // Сразу включаем редактирование названия
     setEditingId(newTask.id);
     setEditText(newTask.text);
   };
@@ -90,6 +93,7 @@ export const TasksView = ({ tasks, updateProject, formatDate, project }) => {
 
   // --- ЭКСПОРТ ---
   const handleExport = async (type) => {
+    // При экспорте сортируем по дате, чтобы в файле был порядок
     const activeTasks = tasks.filter(t => !t.done).sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
 
     if (type === 'excel') {
@@ -159,11 +163,15 @@ export const TasksView = ({ tasks, updateProject, formatDate, project }) => {
     }
   };
 
+  // --- СОРТИРОВКА ДЛЯ ЭКРАНА ---
   const sortedTasks = [...tasks].sort((a, b) => {
-    if (a.done === b.done) {
-      return new Date(a.deadline) - new Date(b.deadline);
+    // 1. Сначала разделяем по статусу (Выполненные вниз)
+    if (a.done !== b.done) {
+        return a.done ? 1 : -1;
     }
-    return a.done ? 1 : -1;
+    // 2. Если статус одинаковый (обе активные), НЕ сортируем по дате.
+    // Оставляем порядок как в массиве (новые сверху), чтобы список не прыгал.
+    return 0;
   });
 
   const filteredTasks = sortedTasks.filter(t => {
@@ -233,7 +241,7 @@ export const TasksView = ({ tasks, updateProject, formatDate, project }) => {
                                         onChange={(e) => setEditText(e.target.value)}
                                         onBlur={() => saveEdit(task.id)}
                                         onKeyDown={(e) => handleKeyDown(e, task.id)}
-                                        className="w-full bg-transparent outline-none text-[#414942] font-medium text-base p-0 m-0" // Убрал border-b
+                                        className="w-full bg-transparent outline-none text-[#414942] font-medium text-base p-0 m-0"
                                     />
                                 ) : (
                                     <p 
