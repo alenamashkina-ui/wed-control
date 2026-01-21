@@ -39,7 +39,7 @@ import { NotesView } from './components/project/NotesView';
 import { CreateView } from './components/project/CreateView';
 import { SettingsModal } from './components/project/SettingsModal';
 import { OrganizersView } from './components/admin/OrganizersView';
-import { SuperAdminView } from './components/admin/SuperAdminView'; // ИМПОРТ СУПЕР АДМИНА
+import { SuperAdminView } from './components/admin/SuperAdminView';
 import { VendorsView } from './components/admin/VendorsView';
 
 const app = initializeApp(firebaseConfig);
@@ -64,6 +64,7 @@ export default function WeddingPlanner() {
   const [organizersList, setOrganizersList] = useState([]);
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   
+  // Сортировка есть, но UI будет компактным
   const [sortBy, setSortBy] = useState('date'); 
     
   const [loginEmail, setLoginEmail] = useState('');
@@ -106,9 +107,6 @@ export default function WeddingPlanner() {
   useEffect(() => {
     if (!authUser || !user) return;
     if (user.role === 'client') return;
-    
-    // Если супер-админ - ему НЕ нужно грузить проекты в стейт projects, 
-    // так как у него свой отдельный компонент SuperAdminView, который сам всё грузит.
     if (user.role === 'super_admin') return; 
 
     let q;
@@ -237,11 +235,11 @@ export default function WeddingPlanner() {
   if (view === 'manage_organizers') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]"><nav className="p-6 flex items-center gap-4"><button onClick={() => setView('dashboard')} className="p-2 hover:bg-white rounded-full text-[#AC8A69]"><ChevronLeft/></button><h1 className="text-xl font-bold text-[#414942]">Назад</h1></nav><OrganizersView currentUser={user} db={db} /></div>);
   if (view === 'vendors_db') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]"><nav className="p-6 flex items-center gap-4"><button onClick={() => setView('dashboard')} className="p-2 hover:bg-white rounded-full text-[#AC8A69]"><ChevronLeft/></button><h1 className="text-xl font-bold text-[#414942]">Назад</h1></nav><VendorsView agencyId={user.agencyId} /></div>);
   
-  // ВМЕСТО КНОПКИ В ДАШБОРДЕ - ЕСЛИ СУПЕР АДМИН, СРАЗУ ПОКАЗЫВАЕМ ЕГО КОМПОНЕНТ
   if (view === 'super_admin' || (view === 'dashboard' && user?.role === 'super_admin')) {
       return <SuperAdminView onLogout={handleLogout} currentUser={user} />;
   }
 
+  // Сортировка проектов
   const sortedProjects = [...projects]
     .filter(p => dashboardTab === 'active' ? !p.isArchived : p.isArchived)
     .sort((a, b) => {
@@ -286,22 +284,28 @@ export default function WeddingPlanner() {
               </div>
           )}
 
-          {/* СОРТИРОВКА И ВКЛАДКИ */}
+          {/* ВКЛАДКИ И СОРТИРОВКА */}
           <div className="flex flex-col md:flex-row justify-between items-end md:items-center border-b border-[#EBE5E0] mb-8 gap-4">
               <div className="flex gap-4">
                   <button onClick={() => setDashboardTab('active')} className={`pb-3 px-1 text-sm font-bold uppercase tracking-wider transition-all border-b-2 ${dashboardTab === 'active' ? 'border-[#936142] text-[#936142]' : 'border-transparent text-[#CCBBA9]'}`}>Активные проекты</button>
                   <button onClick={() => setDashboardTab('archived')} className={`pb-3 px-1 text-sm font-bold uppercase tracking-wider transition-all border-b-2 ${dashboardTab === 'archived' ? 'border-[#936142] text-[#936142]' : 'border-transparent text-[#CCBBA9]'}`}>Архив</button>
               </div>
-              <div className="flex items-center gap-2 pb-3">
-                    <ListFilter size={16} className="text-[#AC8A69]" />
-                    <select 
-                        value={sortBy} 
-                        onChange={(e) => setSortBy(e.target.value)}
-                        className="bg-transparent text-sm text-[#414942] font-medium outline-none cursor-pointer hover:text-[#936142] transition-colors"
-                    >
-                        <option value="date">По дате</option>
-                        <option value="organizer">По организатору</option>
-                    </select>
+              
+              {/* Сортировка */}
+              <div className="flex items-center gap-2 pb-2">
+                    <div className="relative group">
+                        <div className="flex items-center gap-1 cursor-pointer text-[#CCBBA9] hover:text-[#936142] transition-colors">
+                            <ListFilter size={16} />
+                            <select 
+                                value={sortBy} 
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="bg-transparent text-xs font-medium outline-none cursor-pointer appearance-none pr-4"
+                            >
+                                <option value="date">По дате</option>
+                                <option value="organizer">По организатору</option>
+                            </select>
+                        </div>
+                    </div>
               </div>
           </div>
 
@@ -329,7 +333,6 @@ export default function WeddingPlanner() {
   }
 
   if (view === 'project' && currentProject) {
-    // ... (без изменений, но код нужен полный)
     const daysLeft = getDaysUntil(currentProject.date);
     const isClient = user.role === 'client';
 
@@ -376,7 +379,10 @@ export default function WeddingPlanner() {
                     <div><h3 className="text-lg md:text-xl font-serif text-[#414942] mb-4 md:mb-6">Ближайшие дедлайны</h3><div className="grid gap-3 md:gap-4">{currentProject.tasks.filter(t => !t.done).sort((a,b) => new Date(a.deadline) - new Date(b.deadline)).slice(0, 3).map(task => (<div key={task.id} className="flex items-center justify-between p-4 md:p-5 bg-white rounded-2xl shadow-sm border border-[#EBE5E0]"><div className="flex items-center gap-4"><div className="w-1.5 md:w-2 h-10 md:h-12 bg-[#C58970] rounded-full"></div><div><p className="font-medium text-sm md:text-base text-[#414942]">{task.text}</p><p className="text-xs md:text-sm text-[#AC8A69]">{formatDate(task.deadline)}</p></div></div><Button variant="ghost" onClick={() => setActiveTab('tasks')} className="p-2"><ArrowRight size={18} md:size={20}/></Button></div>))}</div></div>
                 </div>
             )}
-            {activeTab === 'tasks' && <TasksView tasks={currentProject.tasks} updateProject={updateProject} formatDate={formatDate} />}
+            
+            {/* ТЕПЕРЬ СЮДА ПЕРЕДАЕТСЯ ОБЪЕКТ PROJECT ДЛЯ ГЕНЕРАЦИИ PDF/EXCEL */}
+            {activeTab === 'tasks' && <TasksView tasks={currentProject.tasks} updateProject={updateProject} formatDate={formatDate} project={currentProject} />}
+            
             {activeTab === 'budget' && <BudgetView expenses={currentProject.expenses} updateProject={updateProject} downloadCSV={downloadCSV} />}
             {activeTab === 'guests' && <GuestsView guests={currentProject.guests} updateProject={updateProject} downloadCSV={downloadCSV} />}
             {activeTab === 'timing' && <TimingView timing={currentProject.timing} updateProject={updateProject} downloadCSV={downloadCSV} />}
