@@ -29,7 +29,7 @@ export const TasksView = ({ tasks, updateProject, formatDate, project }) => {
       deadline: new Date().toISOString(), 
       done: false
     };
-    // Добавляем В НАЧАЛО массива ([newTask, ...tasks])
+    // Добавляем в массив (сортировка сделает остальное)
     updateProject('tasks', [newTask, ...tasks]);
     
     // Сразу включаем редактирование названия
@@ -93,7 +93,6 @@ export const TasksView = ({ tasks, updateProject, formatDate, project }) => {
 
   // --- ЭКСПОРТ ---
   const handleExport = async (type) => {
-    // При экспорте сортируем по дате, чтобы в файле был порядок
     const activeTasks = tasks.filter(t => !t.done).sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
 
     if (type === 'excel') {
@@ -165,13 +164,12 @@ export const TasksView = ({ tasks, updateProject, formatDate, project }) => {
 
   // --- СОРТИРОВКА ДЛЯ ЭКРАНА ---
   const sortedTasks = [...tasks].sort((a, b) => {
-    // 1. Сначала разделяем по статусу (Выполненные вниз)
+    // 1. Выполненные всегда внизу
     if (a.done !== b.done) {
         return a.done ? 1 : -1;
     }
-    // 2. Если статус одинаковый (обе активные), НЕ сортируем по дате.
-    // Оставляем порядок как в массиве (новые сверху), чтобы список не прыгал.
-    return 0;
+    // 2. Активные сортируем по дате (сначала старые/сегодняшние, потом будущие)
+    return new Date(a.deadline) - new Date(b.deadline);
   });
 
   const filteredTasks = sortedTasks.filter(t => {

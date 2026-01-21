@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Trash2, Archive, Download, FileSpreadsheet, FileText, Loader2 } from 'lucide-react';
+import { X, Trash2, Archive, Download, FileSpreadsheet, FileText, Loader2, Copy, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -16,6 +16,9 @@ export const SettingsModal = ({ project, updateProject, onClose, toggleArchive, 
   const [clientPass, setClientPass] = useState(project.clientPassword || '');
   
   const [isExporting, setIsExporting] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const guestLink = `${window.location.origin}/guest/${project.id}`;
 
   const handleSave = () => {
     updateProject('groomName', groomName);
@@ -24,6 +27,12 @@ export const SettingsModal = ({ project, updateProject, onClose, toggleArchive, 
     updateProject('venueName', venue);
     updateProject('clientPassword', clientPass);
     onClose();
+  };
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(guestLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const getFileName = (ext) => {
@@ -119,24 +128,8 @@ export const SettingsModal = ({ project, updateProject, onClose, toggleArchive, 
                 return y + 10;
             };
 
-            // Общие стили для всех таблиц
-            const commonStyles = { 
-                font: 'Roboto', 
-                fontStyle: 'normal', 
-                fontSize: 9, 
-                cellPadding: 2,
-                overflow: 'linebreak'
-            };
-            
-            // Стиль заголовков (ЦЕНТРИРОВАНИЕ)
-            const headStyles = { 
-                fillColor: [147, 97, 66], 
-                textColor: 255, 
-                fontStyle: 'normal', 
-                halign: 'center', 
-                valign: 'middle',
-                font: 'Roboto'
-            };
+            const commonStyles = { font: 'Roboto', fontStyle: 'normal', fontSize: 9, cellPadding: 2, overflow: 'linebreak' };
+            const headStyles = { fillColor: [147, 97, 66], textColor: 255, fontStyle: 'normal', halign: 'center', valign: 'middle', font: 'Roboto' };
 
             // 1. СМЕТА
             finalY = printSectionTitle('Смета расходов', finalY);
@@ -160,14 +153,7 @@ export const SettingsModal = ({ project, updateProject, onClose, toggleArchive, 
                 showFoot: 'lastPage',
                 styles: commonStyles,
                 headStyles: headStyles,
-                // ИСПРАВЛЕНИЕ: fontStyle 'normal' вместо 'bold', чтобы кириллица не ломалась
-                footStyles: { 
-                    fillColor: [249, 247, 245], 
-                    textColor: [147, 97, 66], 
-                    fontStyle: 'normal', // <--- ЗДЕСЬ БЫЛО BOLD
-                    font: 'Roboto', 
-                    halign: 'right' 
-                },
+                footStyles: { fillColor: [249, 247, 245], textColor: [147, 97, 66], fontStyle: 'normal', font: 'Roboto', halign: 'right' },
                 columnStyles: { 0: { cellWidth: 'auto' }, 5: { cellWidth: 40 } }
             });
             finalY = doc.lastAutoTable.finalY + 20;
@@ -280,11 +266,26 @@ export const SettingsModal = ({ project, updateProject, onClose, toggleArchive, 
                     <Input label="Дата свадьбы" type="date" value={date} onChange={e => setDate(e.target.value)} />
                     <Input label="Место проведения" value={venue} onChange={e => setVenue(e.target.value)} />
                 </div>
-                <Input label="Пароль для гостей (ссылка)" value={clientPass} onChange={e => setClientPass(e.target.value)} />
+                <Input label="Пароль для гостей (для входа по ссылке)" value={clientPass} onChange={e => setClientPass(e.target.value)} />
+            </div>
+
+            {/* ССЫЛКА ДЛЯ ПАРЫ */}
+            <div className="bg-[#F9F7F5] p-4 rounded-xl border border-[#AC8A69]/20">
+                <label className="block text-[10px] text-[#AC8A69] font-bold uppercase tracking-wider mb-2">Ссылка для пары (отправь им)</label>
+                <div className="flex gap-2">
+                    <input 
+                        readOnly 
+                        className="w-full bg-white border border-[#EBE5E0] text-[#414942] text-sm rounded-lg px-3 py-2 outline-none select-all"
+                        value={guestLink}
+                    />
+                    <Button onClick={copyLink} variant="secondary" className="min-w-[40px] px-0 flex items-center justify-center">
+                        {copied ? <Check size={18} className="text-green-600"/> : <Copy size={18}/>}
+                    </Button>
+                </div>
             </div>
 
             {/* СЕКЦИЯ ЭКСПОРТА */}
-            <div className="bg-[#F9F7F5] rounded-xl p-5 border border-[#AC8A69]/20">
+            <div className="border-t border-[#EBE5E0] pt-6">
                 <h3 className="font-bold text-[#AC8A69] uppercase text-xs tracking-wider mb-4 flex items-center gap-2">
                     <Download size={14}/> Экспорт всего проекта
                 </h3>

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -12,6 +12,9 @@ import { DownloadMenu } from '../ui/DownloadMenu';
 import { formatCurrency } from '../../utils';
 
 export const BudgetView = ({ expenses, updateProject, project }) => {
+  // Состояние для отслеживания активного поля (для исчезающего нуля)
+  const [activeField, setActiveField] = useState({ id: null, field: null });
+
   // 1. Расчет итогов
   const totals = useMemo(() => {
     return expenses.reduce((acc, item) => ({
@@ -21,19 +24,22 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
     }), { plan: 0, fact: 0, paid: 0 });
   }, [expenses]);
 
-  const balance = totals.fact - totals.paid;
-
-  // 2. Управление данными
-  const updateExpense = (index, field, val) => {
-    const newExpenses = [...expenses];
-    newExpenses[index][field] = val;
+  // 2. Управление данными (ТЕПЕРЬ ПО ID, А НЕ ПО ИНДЕКСУ)
+  const updateExpense = (id, field, val) => {
+    const newExpenses = expenses.map(item => {
+        if (item.id === id) {
+            // Если поле числовое, сохраняем как число, иначе как строку
+            const cleanVal = (field === 'plan' || field === 'fact' || field === 'paid') ? Number(val) : val;
+            return { ...item, [field]: cleanVal };
+        }
+        return item;
+    });
     updateProject('expenses', newExpenses);
   };
 
   const addExpense = () => {
-    updateProject('expenses', [
-      ...expenses, 
-      { 
+    // ДОБАВЛЯЕМ В НАЧАЛО СПИСКА
+    const newItem = { 
         id: Math.random().toString(36).substr(2, 9),
         category: 'Новое', 
         name: 'Новая статья', 
@@ -41,25 +47,25 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
         fact: 0, 
         paid: 0, 
         note: '' 
-      }
-    ]);
+    };
+    // Новый элемент + старые элементы
+    updateProject('expenses', [newItem, ...expenses]);
   };
 
-  const removeExpense = (index) => {
+  const removeExpense = (id) => {
     if (window.confirm('Удалить статью?')) {
-        const newExpenses = [...expenses];
-        newExpenses.splice(index, 1);
+        const newExpenses = expenses.filter(item => item.id !== id);
         updateProject('expenses', newExpenses);
     }
   };
 
-  // 3. Логика исчезающего нуля
-  const handleFocus = (index, field, val) => {
-    if (Number(val) === 0) updateExpense(index, field, '');
+  // 3. Логика фокуса (исчезающий ноль)
+  const handleFocus = (id, field) => {
+    setActiveField({ id, field });
   };
 
-  const handleBlur = (index, field, val) => {
-    if (val === '' || val === null || isNaN(Number(val))) updateExpense(index, field, 0);
+  const handleBlur = () => {
+    setActiveField({ id: null, field: null });
   };
 
   // 4. Логика экспорта
@@ -78,7 +84,6 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
         note: e.note || ''
     }));
 
-    // --- EXCEL ---
     if (type === 'excel') {
         const wsData = [
             ['Статья расходов', 'План', 'Факт', 'Внесено', 'Остаток', 'Комментарий'],
@@ -94,7 +99,6 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
         XLSX.writeFile(wb, `${fileName}.xlsx`);
     }
 
-    // --- CSV ---
     else if (type === 'csv') {
         const BOM = "\uFEFF";
         const columns = `Статья расходов;План;Факт;Внесено;Остаток;Комментарий\n`;
@@ -110,7 +114,6 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
         saveAs(blob, `${fileName}.csv`);
     }
 
-    // --- PDF ---
     else if (type === 'pdf') {
         const doc = new jsPDF();
         try {
@@ -125,8 +128,11 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
                 doc.setFont('Roboto');
 
                 doc.setFontSize(14);
-                doc.text(`Смета: ${groom} и ${bride}`, 14, 15);
-                if (dateStr) doc.text(`Дата: ${dateStr}`, 14, 22);
+                doc.text(`${groom} и ${bride}`, 14, 15);
+                if (dateStr) doc.text(dateStr, 14, 22);
+                
+                doc.setFontSize(18);
+                doc.text("Смета расходов", 14, 35);
 
                 const tableBody = tableData.map(r => [
                     r.name, 
@@ -150,7 +156,7 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
                     head: [['Статья расходов', 'План', 'Факт', 'Внесено', 'Остаток', 'Комментарий']],
                     body: tableBody,
                     foot: tableFoot,
-                    startY: 30,
+                    startY: 40,
                     showFoot: 'lastPage',
                     styles: { 
                         font: 'Roboto', 
@@ -168,8 +174,9 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
                     footStyles: { 
                         fillColor: [249, 247, 245], 
                         textColor: [147, 97, 66], 
-                        fontStyle: 'bold',
-                        halign: 'right' 
+                        fontStyle: 'normal', 
+                        halign: 'right',
+                        font: 'Roboto'
                     },
                     columnStyles: {
                         0: { cellWidth: 'auto', halign: 'left' },
@@ -179,21 +186,25 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
                         4: { cellWidth: 20, halign: 'center' },
                         5: { cellWidth: 45, halign: 'left' }
                     },
-                    margin: { bottom: 20 }
-                });
+                    margin: { bottom: 20 },
+                    
+                    didDrawPage: function (data) {
+                        const pageSize = doc.internal.pageSize;
+                        const pageWidth = pageSize.width ? pageSize.width : pageSize.getWidth();
+                        const pageHeight = pageSize.height ? pageSize.height : pageSize.getHeight();
+                        
+                        doc.setFontSize(8);
+                        doc.setTextColor(150);
 
-                const pageCount = doc.internal.getNumberOfPages();
-                for (let i = 1; i <= pageCount; i++) {
-                    doc.setPage(i);
-                    doc.setFontSize(8);
-                    doc.setTextColor(150);
-                    const footerText = `${i}/${pageCount} - paraplanner.ru`;
-                    const pageSize = doc.internal.pageSize;
-                    const pageWidth = pageSize.width ? pageSize.width : pageSize.getWidth();
-                    const pageHeight = pageSize.height ? pageSize.height : pageSize.getHeight();
-                    const textWidth = doc.getStringUnitWidth(footerText) * doc.internal.getFontSize() / doc.internal.scaleFactor;
-                    doc.text(footerText, (pageWidth - textWidth) / 2, pageHeight - 10);
-                }
+                        const brand = "paraplanner.ru";
+                        const brandWidth = doc.getStringUnitWidth(brand) * doc.internal.getFontSize() / doc.internal.scaleFactor;
+                        doc.text(brand, (pageWidth - brandWidth) / 2, pageHeight - 10);
+
+                        const str = 'Стр. ' + doc.internal.getNumberOfPages();
+                        const strWidth = doc.getStringUnitWidth(str) * doc.internal.getFontSize() / doc.internal.scaleFactor;
+                        doc.text(str, pageWidth - data.settings.margin.right - strWidth, pageHeight - 10);
+                    }
+                });
 
                 doc.save(`${fileName}.pdf`);
             };
@@ -242,47 +253,52 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EBE5E0] print:divide-[#CCBBA9]">
-              {expenses.map((item, idx) => (
-                <tr key={idx} className="hover:bg-[#F9F7F5]/50 group print:break-inside-avoid">
+              {expenses.map((item) => (
+                <tr key={item.id} className="hover:bg-[#F9F7F5]/50 group print:break-inside-avoid">
+                  
                   {/* НАЗВАНИЕ */}
                   <td className="p-2 md:p-4 align-top">
                     <AutoHeightTextarea 
                         className="w-full bg-transparent outline-none font-medium text-[#414942] text-sm md:text-base whitespace-normal min-h-[1.5rem]" 
                         value={item.name} 
-                        onChange={(e) => updateExpense(idx, 'name', e.target.value)} 
+                        onChange={(e) => updateExpense(item.id, 'name', e.target.value)} 
                     />
                   </td>
                   
-                  {/* ЦИФРЫ - Добавлен onWheel={(e) => e.target.blur()} чтобы отключить смену цифр тачпадом */}
+                  {/* ПЛАН */}
+                  <td className="p-2 md:p-4 align-top">
+                    <input 
+                        type="number" 
+                        value={activeField.id === item.id && activeField.field === 'plan' && item.plan === 0 ? '' : item.plan} 
+                        onChange={(e) => updateExpense(item.id, 'plan', e.target.value)}
+                        onFocus={() => handleFocus(item.id, 'plan')}
+                        onBlur={() => handleBlur()}
+                        onWheel={(e) => e.target.blur()} 
+                        className="w-full bg-transparent outline-none text-[#414942] text-sm md:text-base placeholder-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </td>
+
+                  {/* ФАКТ */}
                   <td className="p-2 md:p-4 align-top">
                     <input 
                         type="number"
-                        value={item.plan} 
-                        onChange={(e) => updateExpense(idx, 'plan', e.target.value)}
-                        onFocus={() => handleFocus(idx, 'plan', item.plan)}
-                        onBlur={() => handleBlur(idx, 'plan', item.plan)}
+                        value={activeField.id === item.id && activeField.field === 'fact' && item.fact === 0 ? '' : item.fact} 
+                        onChange={(e) => updateExpense(item.id, 'fact', e.target.value)}
+                        onFocus={() => handleFocus(item.id, 'fact')}
+                        onBlur={() => handleBlur()}
                         onWheel={(e) => e.target.blur()}
                         className="w-full bg-transparent outline-none text-[#414942] text-sm md:text-base placeholder-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </td>
+
+                  {/* ВНЕСЕНО */}
                   <td className="p-2 md:p-4 align-top">
                     <input 
                         type="number"
-                        value={item.fact} 
-                        onChange={(e) => updateExpense(idx, 'fact', e.target.value)}
-                        onFocus={() => handleFocus(idx, 'fact', item.fact)}
-                        onBlur={() => handleBlur(idx, 'fact', item.fact)}
-                        onWheel={(e) => e.target.blur()}
-                        className="w-full bg-transparent outline-none text-[#414942] text-sm md:text-base placeholder-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                  </td>
-                  <td className="p-2 md:p-4 align-top">
-                    <input 
-                        type="number"
-                        value={item.paid} 
-                        onChange={(e) => updateExpense(idx, 'paid', e.target.value)}
-                        onFocus={() => handleFocus(idx, 'paid', item.paid)}
-                        onBlur={() => handleBlur(idx, 'paid', item.paid)}
+                        value={activeField.id === item.id && activeField.field === 'paid' && item.paid === 0 ? '' : item.paid} 
+                        onChange={(e) => updateExpense(item.id, 'paid', e.target.value)}
+                        onFocus={() => handleFocus(item.id, 'paid')}
+                        onBlur={() => handleBlur()}
                         onWheel={(e) => e.target.blur()}
                         className="w-full bg-transparent outline-none text-[#414942] text-sm md:text-base placeholder-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
@@ -299,13 +315,13 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
                         className="w-full bg-transparent outline-none text-xs text-[#AC8A69] placeholder-[#CCBBA9] min-h-[1.5rem]" 
                         placeholder="..." 
                         value={item.note || ''} 
-                        onChange={(e) => updateExpense(idx, 'note', e.target.value)} 
+                        onChange={(e) => updateExpense(item.id, 'note', e.target.value)} 
                     />
                   </td>
                   
                   {/* УДАЛЕНИЕ */}
                   <td className="p-2 md:p-4 align-top print:hidden">
-                    <button onClick={() => removeExpense(idx)} className="text-red-300 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => removeExpense(item.id)} className="text-red-300 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         <Trash2 size={16} />
                     </button>
                   </td>
