@@ -48,9 +48,12 @@ const db = getFirestore(app);
 const appId = APP_ID_DB;
 
 export default function WeddingPlanner() {
+  
+  // 1. ЖЕЛЕЗНАЯ ЛОГИКА: Есть ID в ссылке? -> Сразу показываем client_login.
   const urlParams = new URLSearchParams(window.location.search);
   const linkId = urlParams.get('id');
   
+  // Если linkId есть, view сразу становится 'client_login', иначе 'login'
   const [view, setView] = useState(linkId ? 'client_login' : 'login'); 
 
   const [user, setUser] = useState(null); 
@@ -86,6 +89,7 @@ export default function WeddingPlanner() {
         if (savedUser) {
             try {
                 const parsedUser = JSON.parse(savedUser);
+                // Если мы НЕ в режиме гостя (linkId), то восстанавливаем сессию
                 if (parsedUser.role !== 'client' && !linkId) {
                     setUser(parsedUser);
                     setNewProfileEmail(parsedUser.email);
@@ -175,13 +179,16 @@ export default function WeddingPlanner() {
 
   const handleLogout = () => { localStorage.removeItem('wed_user'); setUser(null); setView('login'); window.history.pushState(null, '', '/'); };
   
+  // 2. Функция входа (срабатывает ТОЛЬКО после нажатия кнопки)
   const handleClientLinkLogin = async () => {
       if (!linkId) { alert("Ошибка ссылки"); return; }
       if (!loginPass) { alert("Введите пароль"); return; }
+      
       setIsLoginLoading(true);
       try {
           const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', linkId);
           const docSnap = await getDoc(docRef);
+          
           if (docSnap.exists()) {
               const data = docSnap.data();
               if (String(data.clientPassword).trim() === String(loginPass).trim()) {
@@ -226,7 +233,39 @@ export default function WeddingPlanner() {
   const handleRecovery = async () => { const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users')); const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); const foundUser = users.find(u => u.email === recoveryEmail.toLowerCase().trim() && u.secret === recoverySecret.trim()); if (foundUser) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', foundUser.id), { password: recoveryNewPass.trim() }); alert("Пароль изменен!"); setView('login'); } else { alert("Неверные данные"); } };
 
   // --- VIEWS ---
-  if (view === 'client_login') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center"><Logo className="h-24 mx-auto mb-6" /><h2 className="text-2xl font-serif text-[#414942] mb-2">Добро пожаловать</h2><p className="text-[#AC8A69] mb-8">Введите пароль от вашей свадьбы</p><Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} /><Button className="w-full mt-4" onClick={handleClientLinkLogin} disabled={isLoginLoading}>{isLoginLoading ? 'Вход...' : 'Войти'}</Button><div className="mt-6 flex justify-center"><a href={SUPPORT_CONTACT} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs text-[#CCBBA9] hover:text-[#936142] transition-colors"><MessageCircle size={14} /> Поддержка</a></div></div><Footer/></div>);
+  
+  // 3. Сам экран ввода пароля
+  if (view === 'client_login') {
+      return (
+        <div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6">
+            <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center">
+                <Logo className="h-24 mx-auto mb-6" />
+                <h2 className="text-2xl font-serif text-[#414942] mb-2">Добро пожаловать</h2>
+                <p className="text-[#AC8A69] mb-8">Введите пароль от вашей свадьбы</p>
+                
+                <Input 
+                    placeholder="Пароль" 
+                    type="password" 
+                    value={loginPass} 
+                    onChange={e => setLoginPass(e.target.value)} 
+                    onKeyDown={(e) => e.key === 'Enter' && handleClientLinkLogin()}
+                />
+                
+                <Button className="w-full mt-4" onClick={handleClientLinkLogin} disabled={isLoginLoading}>
+                    {isLoginLoading ? 'Вход...' : 'Войти'}
+                </Button>
+
+                <div className="mt-6 flex justify-center">
+                    <a href={SUPPORT_CONTACT} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs text-[#CCBBA9] hover:text-[#936142] transition-colors">
+                        <MessageCircle size={14} /> Поддержка
+                    </a>
+                </div>
+            </div>
+            <Footer/>
+        </div>
+      );
+  }
+
   if (view === 'recovery') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><h2 className="text-2xl font-bold text-[#414942] mb-4 text-center">Восстановление</h2><Input placeholder="Email" value={recoveryEmail} onChange={e => setRecoveryEmail(e.target.value)} /><Input placeholder="Секретное слово" value={recoverySecret} onChange={e => setRecoverySecret(e.target.value)} /><Input placeholder="Новый пароль" type="password" value={recoveryNewPass} onChange={e => setRecoveryNewPass(e.target.value)} /><Button className="w-full" onClick={handleRecovery}>Сменить пароль</Button><div className="flex flex-col gap-3 mt-4"><button onClick={() => setView('login')} className="w-full text-center text-sm text-[#AC8A69]">Назад</button><a href={SUPPORT_CONTACT} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 text-xs text-[#CCBBA9] hover:text-[#936142] transition-colors"><MessageCircle size={14} />Написать в поддержку</a></div></div><Footer/></div>);
   if (view === 'login') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><div className="text-center mb-6"><Logo className="w-full h-auto mx-auto mb-4" /><p className="text-[#AC8A69]">Система управления свадьбами</p></div><Input placeholder="Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}/><Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}/><Button className="w-full" onClick={handleLogin} disabled={isLoginLoading}>{isLoginLoading?'Вход...':'Войти'}</Button><div className="flex flex-col gap-3 mt-4"><button onClick={() => setView('recovery')} className="w-full text-center text-xs text-[#AC8A69] hover:underline">Забыли пароль?</button><a href={SUPPORT_CONTACT} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 text-xs text-[#CCBBA9] hover:text-[#936142] transition-colors"><MessageCircle size={14} />Написать в поддержку</a></div></div><Footer/></div>);
   
@@ -355,7 +394,7 @@ export default function WeddingPlanner() {
             </div>
          </nav>
          {isEditingProject && !isClient && (
-             <SettingsModal project={currentProject} updateProject={updateProject} onClose={() => setIsEditingProject(false)} toggleArchive={toggleArchiveProject} deleteProject={deleteProject} downloadCSV={downloadCSV} />
+             <SettingsModal project={currentProject} updateProject={updateProject} onClose={() => setIsEditingProject(false)} toggleArchive={toggleArchiveProject} deleteProject={deleteProject} />
          )}
          <main className="max-w-7xl mx-auto p-4 md:p-12 animate-fadeIn pb-24 print:p-0">
             {activeTab === 'overview' && (
@@ -377,15 +416,9 @@ export default function WeddingPlanner() {
                 </div>
             )}
             {activeTab === 'tasks' && <TasksView tasks={currentProject.tasks} updateProject={updateProject} formatDate={formatDate} project={currentProject} />}
-            {/* ТЕПЕРЬ СЮДА ПЕРЕДАЕМ PROJECT */}
             {activeTab === 'budget' && <BudgetView expenses={currentProject.expenses} updateProject={updateProject} project={currentProject} />}
-            
-            {/* ТЕПЕРЬ СЮДА ТОЖЕ ПЕРЕДАЕМ PROJECT */}
             {activeTab === 'guests' && <GuestsView guests={currentProject.guests} updateProject={updateProject} project={currentProject} />}
-            
-            {/* И СЮДА НА БУДУЩЕЕ */}
-            {activeTab === 'timing' && <TimingView timing={currentProject.timing} updateProject={updateProject} project={currentProject} downloadCSV={downloadCSV} />}
-            
+            {activeTab === 'timing' && <TimingView timing={currentProject.timing} updateProject={updateProject} project={currentProject} />}
             {activeTab === 'notes' && <NotesView notes={currentProject.notes} updateProject={updateProject} />}
          </main>
       </div>

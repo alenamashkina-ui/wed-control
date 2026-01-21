@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Trash2, Archive, Download, FileSpreadsheet, FileText, Loader2, Copy, Check } from 'lucide-react';
+import { X, Trash2, Archive, Download, FileSpreadsheet, FileText, Loader2, Copy, Check, Lock, Link as LinkIcon } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -18,7 +18,8 @@ export const SettingsModal = ({ project, updateProject, onClose, toggleArchive, 
   const [isExporting, setIsExporting] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const guestLink = `${window.location.origin}/guest/${project.id}`;
+  // ВЕРНУЛИ ЖЕЛЕЗНУЮ ЛОГИКУ ССЫЛКИ: ?id=...
+  const guestLink = `${window.location.origin}/?id=${project.id}`;
 
   const handleSave = () => {
     updateProject('groomName', groomName);
@@ -256,6 +257,7 @@ export const SettingsModal = ({ project, updateProject, onClose, toggleArchive, 
         {/* Content */}
         <div className="p-6 overflow-y-auto space-y-8">
             
+            {/* 1. ОСНОВНАЯ ИНФОРМАЦИЯ */}
             <div className="space-y-4">
                 <h3 className="font-bold text-[#AC8A69] uppercase text-xs tracking-wider">Основная информация</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -266,25 +268,46 @@ export const SettingsModal = ({ project, updateProject, onClose, toggleArchive, 
                     <Input label="Дата свадьбы" type="date" value={date} onChange={e => setDate(e.target.value)} />
                     <Input label="Место проведения" value={venue} onChange={e => setVenue(e.target.value)} />
                 </div>
-                <Input label="Пароль для гостей (для входа по ссылке)" value={clientPass} onChange={e => setClientPass(e.target.value)} />
             </div>
 
-            {/* ССЫЛКА ДЛЯ ПАРЫ */}
-            <div className="bg-[#F9F7F5] p-4 rounded-xl border border-[#AC8A69]/20">
-                <label className="block text-[10px] text-[#AC8A69] font-bold uppercase tracking-wider mb-2">Ссылка для пары (отправь им)</label>
-                <div className="flex gap-2">
+            {/* 2. ГОСТЕВОЙ ДОСТУП (ССЫЛКА + ПАРОЛЬ) */}
+            <div className="bg-[#F9F7F5] p-5 rounded-xl border border-[#AC8A69]/20">
+                <h3 className="font-bold text-[#AC8A69] uppercase text-xs tracking-wider mb-4 flex items-center gap-2">
+                    Гостевой доступ
+                </h3>
+
+                {/* ССЫЛКА (ПЕРВАЯ) */}
+                <div className="mb-4">
+                    <label className="block text-[10px] text-[#AC8A69] font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <LinkIcon size={10}/> Ссылка для пары
+                    </label>
+                    <div className="flex gap-2">
+                        <input 
+                            readOnly 
+                            className="w-full bg-white border border-[#EBE5E0] text-[#414942] text-sm rounded-lg px-3 py-2 outline-none select-all text-ellipsis"
+                            value={guestLink}
+                        />
+                        <Button onClick={copyLink} variant="secondary" className="min-w-[40px] px-0 flex items-center justify-center bg-white border border-[#EBE5E0] hover:border-[#AC8A69]">
+                            {copied ? <Check size={18} className="text-green-600"/> : <Copy size={18} className="text-[#AC8A69]"/>}
+                        </Button>
+                    </div>
+                </div>
+
+                {/* ПАРОЛЬ (ВТОРОЙ) */}
+                <div>
+                    <label className="block text-[10px] text-[#AC8A69] font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <Lock size={10}/> Пароль для гостей
+                    </label>
                     <input 
-                        readOnly 
-                        className="w-full bg-white border border-[#EBE5E0] text-[#414942] text-sm rounded-lg px-3 py-2 outline-none select-all"
-                        value={guestLink}
+                        className="w-full bg-white border border-[#EBE5E0] text-[#414942] text-sm rounded-lg px-3 py-2 outline-none focus:border-[#AC8A69] transition-colors"
+                        placeholder="Не установлен"
+                        value={clientPass}
+                        onChange={e => setClientPass(e.target.value)}
                     />
-                    <Button onClick={copyLink} variant="secondary" className="min-w-[40px] px-0 flex items-center justify-center">
-                        {copied ? <Check size={18} className="text-green-600"/> : <Copy size={18}/>}
-                    </Button>
                 </div>
             </div>
 
-            {/* СЕКЦИЯ ЭКСПОРТА */}
+            {/* 3. ЭКСПОРТ */}
             <div className="border-t border-[#EBE5E0] pt-6">
                 <h3 className="font-bold text-[#AC8A69] uppercase text-xs tracking-wider mb-4 flex items-center gap-2">
                     <Download size={14}/> Экспорт всего проекта
@@ -325,6 +348,7 @@ export const SettingsModal = ({ project, updateProject, onClose, toggleArchive, 
                 </div>
             </div>
 
+            {/* 4. УПРАВЛЕНИЕ */}
             <div className="pt-4 border-t border-[#EBE5E0]">
                 <h3 className="font-bold text-red-400 uppercase text-xs tracking-wider mb-4">Управление</h3>
                 <div className="flex flex-col md:flex-row gap-3">
