@@ -379,11 +379,10 @@ export default function WeddingPlanner() {
                     <div><h3 className="text-lg md:text-xl font-serif text-[#414942] mb-4 md:mb-6">Ближайшие дедлайны</h3><div className="grid gap-3 md:gap-4">{currentProject.tasks.filter(t => !t.done).sort((a,b) => new Date(a.deadline) - new Date(b.deadline)).slice(0, 3).map(task => (<div key={task.id} className="flex items-center justify-between p-4 md:p-5 bg-white rounded-2xl shadow-sm border border-[#EBE5E0]"><div className="flex items-center gap-4"><div className="w-1.5 md:w-2 h-10 md:h-12 bg-[#C58970] rounded-full"></div><div><p className="font-medium text-sm md:text-base text-[#414942]">{task.text}</p><p className="text-xs md:text-sm text-[#AC8A69]">{formatDate(task.deadline)}</p></div></div><Button variant="ghost" onClick={() => setActiveTab('tasks')} className="p-2"><ArrowRight size={18} md:size={20}/></Button></div>))}</div></div>
                 </div>
             )}
-            
-            {/* ТЕПЕРЬ СЮДА ПЕРЕДАЕТСЯ ОБЪЕКТ PROJECT ДЛЯ ГЕНЕРАЦИИ PDF/EXCEL */}
             {activeTab === 'tasks' && <TasksView tasks={currentProject.tasks} updateProject={updateProject} formatDate={formatDate} project={currentProject} />}
+            {/* ТЕПЕРЬ СЮДА ТОЖЕ ПЕРЕДАЕМ PROJECT, ЧТОБЫ В СМЕТЕ БЫЛИ ИМЕНА И ДАТА */}
+            {activeTab === 'budget' && <BudgetView expenses={currentProject.expenses} updateProject={updateProject} project={currentProject} />}
             
-            {activeTab === 'budget' && <BudgetView expenses={currentProject.expenses} updateProject={updateProject} downloadCSV={downloadCSV} />}
             {activeTab === 'guests' && <GuestsView guests={currentProject.guests} updateProject={updateProject} downloadCSV={downloadCSV} />}
             {activeTab === 'timing' && <TimingView timing={currentProject.timing} updateProject={updateProject} downloadCSV={downloadCSV} />}
             {activeTab === 'notes' && <NotesView notes={currentProject.notes} updateProject={updateProject} />}
