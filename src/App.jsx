@@ -86,6 +86,24 @@ export default function WeddingPlanner() {
     window.scrollTo(0, 0);
   }, [view, activeTab]);
 
+  // --- HISTORY MAGIC: Обработка кнопки "Назад" в браузере ---
+  useEffect(() => {
+    const handlePopState = (event) => {
+        // Если мы были в проекте и нажали назад -> возвращаемся в дашборд
+        if (view === 'project') {
+            setView('dashboard');
+            setCurrentProject(null);
+        } 
+        // Если были на создании или в других меню -> тоже в дашборд
+        else if (view === 'create' || view === 'manage_organizers' || view === 'vendors_db') {
+            setView('dashboard');
+        }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [view]);
+
   // 2. Init Auth
   useEffect(() => {
     const initAuth = async () => {
@@ -146,19 +164,28 @@ export default function WeddingPlanner() {
       return () => unsubscribe();
   }, [currentProject?.id, view]);
 
-  // 5. History Sync
-  useEffect(() => {
-    const handlePopState = () => {
-        const params = new URLSearchParams(window.location.search);
-        if (!params.get('id') && view !== 'login' && view !== 'recovery' && view !== 'dashboard') {
-            setView('login');
-            setCurrentProject(null);
-            setUser(null);
-        }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [view]);
+  // --- Функция для безопасного открытия проекта ---
+  const openProject = (project) => {
+      setCurrentProject(project);
+      setView('project');
+      setActiveTab('overview');
+      setIsEditingProject(false);
+      // ДОБАВЛЯЕМ ЗАПИСЬ В ИСТОРИЮ БРАУЗЕРА
+      window.history.pushState({ view: 'project' }, '', '?mode=project');
+  };
+
+  const openDashboard = () => {
+      setView('dashboard');
+      // Очищаем URL от ?mode=project
+      window.history.pushState({ view: 'dashboard' }, '', window.location.pathname);
+  };
+
+  const openOtherView = (viewName) => {
+      setView(viewName);
+      if (viewName === 'create') setFormData({...INITIAL_FORM_STATE, clientPassword: Math.floor(1000+Math.random()*9000).toString()});
+      window.scrollTo(0,0);
+      window.history.pushState({ view: viewName }, '', `?mode=${viewName}`);
+  };
 
   // --- Handlers ---
   const handleLogin = async () => {
@@ -227,19 +254,23 @@ export default function WeddingPlanner() {
         }
         const newProject = { ...formData, clientPassword: formData.clientPassword || Math.floor(1000+Math.random()*9000).toString(), tasks: projectTasks, expenses: projectExpenses, timing: projectTiming, guests: [], notes: '', isArchived: false, organizerName: finalOrgName, organizerId: finalOrgId, agencyId: user.agencyId || 'legacy_agency', createdAt: new Date().toISOString() };
         const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), newProject);
-        setCurrentProject({ id: docRef.id, ...newProject }); setView('project'); setActiveTab('overview');
+        setCurrentProject({ id: docRef.id, ...newProject }); 
+        
+        // Используем новую функцию
+        setView('project'); setActiveTab('overview');
+        window.history.pushState({ view: 'project' }, '', '?mode=project');
+
     } catch (e) { console.error(e); alert("Ошибка создания"); } finally { setIsCreating(false); }
   };
 
   const updateProject = async (field, value) => { if(!currentProject) return; await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id), { [field]: value }); };
-  const deleteProject = async () => { if(window.confirm("Удалить?")) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id)); setCurrentProject(null); setView('dashboard'); setIsEditingProject(false); }};
-  const toggleArchiveProject = async () => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id), { isArchived: !currentProject.isArchived }); setIsEditingProject(false); setView('dashboard'); };
+  const deleteProject = async () => { if(window.confirm("Удалить?")) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id)); setCurrentProject(null); openDashboard(); setIsEditingProject(false); }};
+  const toggleArchiveProject = async () => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id), { isArchived: !currentProject.isArchived }); setIsEditingProject(false); openDashboard(); };
   const updateUserProfile = async () => { if (!newProfileEmail.trim() || !newProfilePass.trim()) return; await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.id), { email: newProfileEmail.toLowerCase().trim(), password: newProfilePass.trim(), secret: newProfileSecret.trim() }); const updatedUser = {...user, email: newProfileEmail, password: newProfilePass, secret: newProfileSecret}; setUser(updatedUser); localStorage.setItem('wed_user', JSON.stringify(updatedUser)); alert('Данные обновлены'); setShowProfile(false); };
   const handleRecovery = async () => { const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users')); const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); const foundUser = users.find(u => u.email === recoveryEmail.toLowerCase().trim() && u.secret === recoverySecret.trim()); if (foundUser) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', foundUser.id), { password: recoveryNewPass.trim() }); alert("Пароль изменен!"); setView('login'); } else { alert("Неверные данные"); } };
 
   // --- VIEWS ---
   
-  // 3. Сам экран ввода пароля
   if (view === 'client_login') {
       return (
         <div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6">
@@ -247,24 +278,9 @@ export default function WeddingPlanner() {
                 <Logo className="h-24 mx-auto mb-6" />
                 <h2 className="text-2xl font-serif text-[#414942] mb-2">Добро пожаловать</h2>
                 <p className="text-[#AC8A69] mb-8">Введите пароль от вашей свадьбы</p>
-                
-                <Input 
-                    placeholder="Пароль" 
-                    type="password" 
-                    value={loginPass} 
-                    onChange={e => setLoginPass(e.target.value)} 
-                    onKeyDown={(e) => e.key === 'Enter' && handleClientLinkLogin()}
-                />
-                
-                <Button className="w-full mt-4" onClick={handleClientLinkLogin} disabled={isLoginLoading}>
-                    {isLoginLoading ? 'Вход...' : 'Войти'}
-                </Button>
-
-                <div className="mt-6 flex justify-center">
-                    <a href={SUPPORT_CONTACT} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs text-[#CCBBA9] hover:text-[#936142] transition-colors">
-                        <MessageCircle size={14} /> Поддержка
-                    </a>
-                </div>
+                <Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleClientLinkLogin()}/>
+                <Button className="w-full mt-4" onClick={handleClientLinkLogin} disabled={isLoginLoading}>{isLoginLoading ? 'Вход...' : 'Войти'}</Button>
+                <div className="mt-6 flex justify-center"><a href={SUPPORT_CONTACT} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs text-[#CCBBA9] hover:text-[#936142] transition-colors"><MessageCircle size={14} /> Поддержка</a></div>
             </div>
             <Footer/>
         </div>
@@ -274,9 +290,11 @@ export default function WeddingPlanner() {
   if (view === 'recovery') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><h2 className="text-2xl font-bold text-[#414942] mb-4 text-center">Восстановление</h2><Input placeholder="Email" value={recoveryEmail} onChange={e => setRecoveryEmail(e.target.value)} /><Input placeholder="Секретное слово" value={recoverySecret} onChange={e => setRecoverySecret(e.target.value)} /><Input placeholder="Новый пароль" type="password" value={recoveryNewPass} onChange={e => setRecoveryNewPass(e.target.value)} /><Button className="w-full" onClick={handleRecovery}>Сменить пароль</Button><div className="flex flex-col gap-3 mt-4"><button onClick={() => setView('login')} className="w-full text-center text-sm text-[#AC8A69]">Назад</button><a href={SUPPORT_CONTACT} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 text-xs text-[#CCBBA9] hover:text-[#936142] transition-colors"><MessageCircle size={14} />Написать в поддержку</a></div></div><Footer/></div>);
   if (view === 'login') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><div className="text-center mb-6"><Logo className="w-full h-auto mx-auto mb-4" /><p className="text-[#AC8A69]">Система управления свадьбами</p></div><Input placeholder="Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}/><Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}/><Button className="w-full" onClick={handleLogin} disabled={isLoginLoading}>{isLoginLoading?'Вход...':'Войти'}</Button><div className="flex flex-col gap-3 mt-4"><button onClick={() => setView('recovery')} className="w-full text-center text-xs text-[#AC8A69] hover:underline">Забыли пароль?</button><a href={SUPPORT_CONTACT} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 text-xs text-[#CCBBA9] hover:text-[#936142] transition-colors"><MessageCircle size={14} />Написать в поддержку</a></div></div><Footer/></div>);
   
-  if (view === 'create') return <CreateView formData={formData} setFormData={setFormData} handleCreateProject={handleCreateProject} setView={setView} user={user} organizersList={organizersList} />;
-  if (view === 'manage_organizers') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]"><nav className="p-6 flex items-center gap-4"><button onClick={() => setView('dashboard')} className="p-2 hover:bg-white rounded-full text-[#AC8A69]"><ChevronLeft/></button><h1 className="text-xl font-bold text-[#414942]">Назад</h1></nav><OrganizersView currentUser={user} db={db} /></div>);
-  if (view === 'vendors_db') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]"><nav className="p-6 flex items-center gap-4"><button onClick={() => setView('dashboard')} className="p-2 hover:bg-white rounded-full text-[#AC8A69]"><ChevronLeft/></button><h1 className="text-xl font-bold text-[#414942]">Назад</h1></nav><VendorsView agencyId={user.agencyId} /></div>);
+  if (view === 'create') return <CreateView formData={formData} setFormData={setFormData} handleCreateProject={handleCreateProject} setView={openDashboard} user={user} organizersList={organizersList} />;
+  
+  // КНОПКИ НАЗАД ЗАМЕНЕНЫ НА ИСПОЛЬЗОВАНИЕ openDashboard
+  if (view === 'manage_organizers') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]"><nav className="p-6 flex items-center gap-4"><button onClick={openDashboard} className="p-2 hover:bg-white rounded-full text-[#AC8A69]"><ChevronLeft/></button><h1 className="text-xl font-bold text-[#414942]">Назад</h1></nav><OrganizersView currentUser={user} db={db} /></div>);
+  if (view === 'vendors_db') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]"><nav className="p-6 flex items-center gap-4"><button onClick={openDashboard} className="p-2 hover:bg-white rounded-full text-[#AC8A69]"><ChevronLeft/></button><h1 className="text-xl font-bold text-[#414942]">Назад</h1></nav><VendorsView agencyId={user.agencyId} /></div>);
   
   if (view === 'super_admin' || (view === 'dashboard' && user?.role === 'super_admin')) {
       return <SuperAdminView onLogout={handleLogout} currentUser={user} />;
@@ -303,9 +321,10 @@ export default function WeddingPlanner() {
                 </div>
             </div>
             <div className="flex gap-2 w-full md:w-auto flex-wrap">
-                <Button onClick={() => { setFormData({...INITIAL_FORM_STATE, clientPassword: Math.floor(1000+Math.random()*9000).toString()}); setView('create'); window.scrollTo(0,0); }}><Plus size={20}/> Новый проект</Button>
-                {user.role === 'organizer' && user.agencyId === 'legacy_agency' && <Button variant="secondary" onClick={() => setView('vendors_db')}><Briefcase size={20}/> База подрядчиков</Button>}
-                {user.role === 'agency_admin' && <Button variant="secondary" onClick={() => setView('manage_organizers')}><Users size={20}/> Команда</Button>}
+                {/* ИСПОЛЬЗУЕМ openOtherView */}
+                <Button onClick={() => openOtherView('create')}><Plus size={20}/> Новый проект</Button>
+                {user.role === 'organizer' && user.agencyId === 'legacy_agency' && <Button variant="secondary" onClick={() => openOtherView('vendors_db')}><Briefcase size={20}/> База подрядчиков</Button>}
+                {user.role === 'agency_admin' && <Button variant="secondary" onClick={() => openOtherView('manage_organizers')}><Users size={20}/> Команда</Button>}
                 <Button variant="ghost" onClick={handleLogout}><LogOut size={20}/></Button>
             </div>
           </header>
@@ -355,7 +374,8 @@ export default function WeddingPlanner() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {sortedProjects.map(p => (
-                <div key={p.id} onClick={() => { setCurrentProject(p); setView('project'); setActiveTab('overview'); setIsEditingProject(false); }} className={`bg-white p-8 rounded-3xl shadow-sm hover:shadow-xl transition-all duration-500 cursor-pointer group border border-[#EBE5E0] hover:border-[#AC8A69]/30 relative overflow-hidden active:scale-[0.98]`}>
+                // ИСПОЛЬЗУЕМ openProject ВМЕСТО ПРЯМОЙ УСТАНОВКИ
+                <div key={p.id} onClick={() => openProject(p)} className={`bg-white p-8 rounded-3xl shadow-sm hover:shadow-xl transition-all duration-500 cursor-pointer group border border-[#EBE5E0] hover:border-[#AC8A69]/30 relative overflow-hidden active:scale-[0.98]`}>
                     <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity"><Heart size={64} className="text-[#936142] fill-current"/></div>
                     <div className="relative z-10">
                         <div className="flex justify-between items-start mb-3"><p className="text-xs font-bold text-[#AC8A69] uppercase tracking-widest">{formatDate(p.date)}</p></div>
@@ -382,7 +402,8 @@ export default function WeddingPlanner() {
          <div className="hidden print:block text-center text-xl font-bold mb-4 text-[#936142] pt-4">paraplanner.ru</div>
          <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-[#EBE5E0] print:hidden">
             <div className="max-w-7xl mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
-                <div className="flex items-center gap-2 md:gap-4">{!isClient && <button onClick={() => setView('dashboard')} className="p-2 hover:bg-[#F9F7F5] rounded-full transition-colors text-[#AC8A69]"><ChevronLeft /></button>}<Logo className="h-10 md:h-12" /></div>
+                {/* ИСПОЛЬЗУЕМ openDashboard */}
+                <div className="flex items-center gap-2 md:gap-4">{!isClient && <button onClick={openDashboard} className="p-2 hover:bg-[#F9F7F5] rounded-full transition-colors text-[#AC8A69]"><ChevronLeft /></button>}<Logo className="h-10 md:h-12" /></div>
                 <div className="hidden md:flex gap-1 bg-[#F9F7F5] p-1 rounded-xl">
                     {['overview', 'tasks', 'budget', 'guests', 'timing', 'notes'].map(tab => (
                         <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? 'bg-white text-[#936142] shadow-sm' : 'text-[#CCBBA9] hover:text-[#414942]'}`}>{tab === 'overview' ? 'Обзор' : tab === 'tasks' ? 'Задачи' : tab === 'budget' ? 'Смета' : tab === 'guests' ? 'Гости' : tab === 'timing' ? 'Тайминг' : 'Заметки'}</button>
