@@ -106,9 +106,9 @@ export const GuestsView = ({ guests, updateProject, project }) => {
                 doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
                 doc.setFont('Roboto');
 
-                // ЗАГОЛОВОК PDF (ИСПРАВЛЕНО: только имена)
+                // ЗАГОЛОВОК PDF
                 doc.setFontSize(14);
-                doc.text(`${groom} и ${bride}`, 14, 15); // Было "Гости: ..."
+                doc.text(`${groom} и ${bride}`, 14, 15);
                 if (dateStr) doc.text(dateStr, 14, 22);
                 
                 doc.setFontSize(18);
@@ -228,16 +228,16 @@ export const GuestsView = ({ guests, updateProject, project }) => {
                                     <label className="block text-[10px] text-[#CCBBA9] font-bold uppercase tracking-wider mb-1">ФИО Гостя</label>
                                     <input 
                                         className="w-full text-base font-medium text-[#414942] placeholder-[#EBE5E0] outline-none bg-transparent"
-                                        placeholder="Имя Фамилия"
+                                        placeholder="Иван Иванов"
                                         value={guest.name}
                                         onChange={(e) => updateGuest(guest.id, 'name', e.target.value)}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] text-[#CCBBA9] font-bold uppercase tracking-wider mb-1">На карточке</label>
+                                    <label className="block text-[10px] text-[#CCBBA9] font-bold uppercase tracking-wider mb-1">Имя на карточке</label>
                                     <input 
                                         className="w-full text-sm text-[#414942] placeholder-[#EBE5E0] outline-none bg-transparent"
-                                        placeholder="Как обращаться"
+                                        placeholder="Ваня"
                                         value={guest.seatingName}
                                         onChange={(e) => updateGuest(guest.id, 'seatingName', e.target.value)}
                                     />
