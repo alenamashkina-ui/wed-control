@@ -35,6 +35,8 @@ export const TasksView = ({ tasks, updateProject, formatDate, project }) => {
     // Сразу включаем редактирование названия
     setEditingId(newTask.id);
     setEditText(newTask.text);
+    // Если мы были в фильтре "Выполненные", переключаемся на "Все", чтобы увидеть новую задачу
+    if (filter === 'done') setFilter('all');
   };
 
   const toggleTask = (taskId, currentStatus) => {
@@ -181,32 +183,50 @@ export const TasksView = ({ tasks, updateProject, formatDate, project }) => {
 
   return (
     <div className="animate-fadeIn">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+        {/* ЗАГОЛОВОК И УПРАВЛЕНИЕ */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 md:mb-8">
             <div>
-                <h2 className="text-3xl font-serif text-[#414942]">Список задач</h2>
-                <p className="text-[#AC8A69] mt-2">Осталось выполнить: {activeCount}</p>
+                <h2 className="text-2xl md:text-3xl font-serif text-[#414942]">Список задач</h2>
+                <p className="text-[#AC8A69] mt-1 md:mt-2">Осталось выполнить: {activeCount}</p>
             </div>
             
-            <div className="flex items-center gap-3">
-                <DownloadMenu onSelect={handleExport} />
+            {/* Блок кнопок: на мобильном перестраивается в колонку */}
+            <div className="w-full md:w-auto flex flex-col sm:flex-row gap-3">
                 
-                <Button onClick={addTask} className="flex items-center gap-2">
-                    <Plus size={18}/> Добавить
-                </Button>
+                {/* Верхний ряд на мобильном: Меню + Добавить */}
+                <div className="flex items-center gap-2 md:gap-3">
+                    <DownloadMenu onSelect={handleExport} />
+                    
+                    <Button onClick={addTask} className="flex-1 sm:flex-none flex items-center justify-center gap-2">
+                        <Plus size={18}/> <span className="sm:inline">Добавить</span>
+                    </Button>
+                </div>
 
-                <div className="bg-white p-1 rounded-xl shadow-sm border border-[#EBE5E0] flex ml-2">
-                    <button onClick={() => setFilter('all')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === 'all' ? 'bg-[#F9F7F5] text-[#936142]' : 'text-[#CCBBA9]'}`}>Все</button>
-                    <button onClick={() => setFilter('done')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === 'done' ? 'bg-[#F9F7F5] text-[#936142]' : 'text-[#CCBBA9]'}`}>Выполненные</button>
+                {/* Нижний ряд на мобильном: Фильтры */}
+                <div className="bg-white p-1 rounded-xl shadow-sm border border-[#EBE5E0] flex">
+                    <button 
+                        onClick={() => setFilter('all')} 
+                        className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === 'all' ? 'bg-[#F9F7F5] text-[#936142]' : 'text-[#CCBBA9]'}`}
+                    >
+                        Все
+                    </button>
+                    <button 
+                        onClick={() => setFilter('done')} 
+                        className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === 'done' ? 'bg-[#F9F7F5] text-[#936142]' : 'text-[#CCBBA9]'}`}
+                    >
+                        Выполненные
+                    </button>
                 </div>
             </div>
         </div>
 
+        {/* СПИСОК ЗАДАЧ */}
         <div className="space-y-3">
             {filteredTasks.length === 0 ? (
                 <div className="text-center py-20 text-[#CCBBA9]">
                     <CheckCircle2 size={48} className="mx-auto mb-4 opacity-50"/>
                     <p>Задач в этом списке нет</p>
-                    <Button variant="ghost" onClick={addTask} className="mt-2">Создать задачу</Button>
+                    {/* Кнопка "Создать задачу" полностью удалена */}
                 </div>
             ) : (
                 filteredTasks.map(task => {
@@ -217,7 +237,7 @@ export const TasksView = ({ tasks, updateProject, formatDate, project }) => {
                     return (
                         <div 
                             key={task.id} 
-                            className={`group flex items-start md:items-center gap-4 p-4 md:p-5 rounded-2xl transition-all border ${task.done ? 'bg-[#F9F7F5]/50 border-transparent opacity-60' : 'bg-white border-[#EBE5E0] hover:border-[#AC8A69]/50 shadow-sm'}`}
+                            className={`group flex items-start md:items-center gap-3 md:gap-4 p-3 md:p-5 rounded-2xl transition-all border ${task.done ? 'bg-[#F9F7F5]/50 border-transparent opacity-60' : 'bg-white border-[#EBE5E0] hover:border-[#AC8A69]/50 shadow-sm'}`}
                         >
                             {/* ЧЕКБОКС */}
                             <button 
@@ -225,13 +245,13 @@ export const TasksView = ({ tasks, updateProject, formatDate, project }) => {
                                     e.stopPropagation(); 
                                     toggleTask(task.id, task.done);
                                 }}
-                                className={`flex-shrink-0 transition-colors ${task.done ? 'text-[#936142]' : 'text-[#CCBBA9] hover:text-[#AC8A69]'}`}
+                                className={`flex-shrink-0 mt-0.5 md:mt-0 transition-colors ${task.done ? 'text-[#936142]' : 'text-[#CCBBA9] hover:text-[#AC8A69]'}`}
                             >
                                 {task.done ? <CheckCircle2 size={24} className="fill-[#936142]/10"/> : <Circle size={24}/>}
                             </button>
 
                             {/* ТЕКСТ ЗАДАЧИ */}
-                            <div className="flex-1 min-w-0">
+                            <div className="flex-1 min-w-0 pt-0.5 md:pt-0">
                                 {isEditing ? (
                                     <input 
                                         autoFocus
@@ -252,7 +272,7 @@ export const TasksView = ({ tasks, updateProject, formatDate, project }) => {
                             </div>
 
                             {/* ПРАВАЯ ЧАСТЬ: ДАТА + КОРЗИНА */}
-                            <div className="flex items-center gap-3 md:gap-4 flex-shrink-0">
+                            <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
                                 
                                 {/* ДАТА */}
                                 {isDateEditing && !task.done ? (
@@ -262,23 +282,27 @@ export const TasksView = ({ tasks, updateProject, formatDate, project }) => {
                                         value={toInputDate(task.deadline)}
                                         onChange={(e) => handleDateChange(task.id, e.target.value)}
                                         onBlur={() => setEditingDateId(null)} 
-                                        className="text-xs border border-[#AC8A69] rounded px-2 py-1 text-[#414942] outline-none"
+                                        className="text-xs border border-[#AC8A69] rounded px-2 py-1 text-[#414942] outline-none max-w-[120px]"
                                     />
                                 ) : (
                                     <div 
                                         onClick={() => !task.done && setEditingDateId(task.id)}
-                                        className={`flex items-center gap-1.5 text-xs cursor-pointer px-2 py-1 rounded-md transition-colors ${isOverdue ? 'text-red-500 font-bold bg-red-50' : 'text-[#AC8A69] hover:bg-[#F9F7F5] hover:text-[#936142]'}`}
+                                        className={`flex items-center gap-1.5 text-xs cursor-pointer px-2 py-1 rounded-md transition-colors whitespace-nowrap ${isOverdue ? 'text-red-500 font-bold bg-red-50' : 'text-[#AC8A69] hover:bg-[#F9F7F5] hover:text-[#936142]'}`}
                                     >
                                         {isOverdue ? <AlertCircle size={14}/> : <Calendar size={14}/>}
+                                        {/* Десктопная версия (полная) */}
                                         <span className="hidden md:inline">{formatDate(task.deadline)}</span>
-                                        <span className="md:hidden">{new Date(task.deadline).getDate()}.{new Date(task.deadline).getMonth()+1}</span>
+                                        {/* Мобильная версия (краткая, цифровая) */}
+                                        <span className="md:hidden">
+                                            {new Date(task.deadline).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}
+                                        </span>
                                     </div>
                                 )}
 
                                 {/* УДАЛЕНИЕ */}
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }}
-                                    className="p-2 text-[#CCBBA9] hover:text-red-400 hover:bg-red-50 rounded-full transition-all"
+                                    className="p-1.5 md:p-2 text-[#CCBBA9] hover:text-red-400 hover:bg-red-50 rounded-full transition-all"
                                 >
                                     <Trash2 size={18}/>
                                 </button>

@@ -81,6 +81,11 @@ export default function WeddingPlanner() {
   const [recoveryNewPass, setRecoveryNewPass] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
+  // --- SCROLL MAGIC: Прокрутка наверх при смене экрана или вкладки ---
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [view, activeTab]);
+
   // 2. Init Auth
   useEffect(() => {
     const initAuth = async () => {
