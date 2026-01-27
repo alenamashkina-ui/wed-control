@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -7,13 +7,92 @@ import autoTable from 'jspdf-autotable';
 
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-// AutoHeightTextarea убрали, будем использовать нативный input
 import { DownloadMenu } from '../ui/DownloadMenu';
 import { formatCurrency } from '../../utils';
 
-export const BudgetView = ({ expenses, updateProject, project }) => {
-  const [activeField, setActiveField] = useState({ index: null, field: null });
+// --- КОМПОНЕНТ ВВОДА (Оптимизированный по высоте) ---
+const BudgetInput = ({ value, onSave, isTextarea, type = "text", className, placeholder }) => {
+  const [localValue, setLocalValue] = useState(value);
+  const textareaRef = useRef(null);
 
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  // СУПЕР-ТОЧНАЯ НАСТРОЙКА ВЫСОТЫ
+  useEffect(() => {
+    if (isTextarea && textareaRef.current) {
+      // 1. Сначала сбрасываем высоту в "auto", чтобы элемент сжался
+      textareaRef.current.style.height = 'auto';
+      
+      // 2. Вычисляем высоту контента
+      const scrollHeight = textareaRef.current.scrollHeight;
+      
+      // 3. Ставим высоту. Если текста нет или мало, ставим минимальную (например, 20px)
+      // Это убирает эффект "пустых высоких строк"
+      textareaRef.current.style.height = `${scrollHeight}px`;
+    }
+  }, [localValue, isTextarea]);
+
+  const handleChange = (e) => {
+    setLocalValue(e.target.value);
+  };
+
+  const handleFocus = () => {
+    if (type === 'number' && Number(localValue) === 0) {
+      setLocalValue('');
+    }
+  };
+
+  const handleBlur = () => {
+    let valToSave = localValue;
+    if (type === 'number' && (localValue === '' || localValue === null)) {
+        valToSave = 0;
+        setLocalValue(0);
+    }
+    
+    if (valToSave !== value) {
+      onSave(valToSave);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !isTextarea) {
+      e.target.blur();
+    }
+  };
+
+  if (isTextarea) {
+    return (
+      <textarea
+        ref={textareaRef}
+        rows={1}
+        className={className}
+        placeholder={placeholder}
+        value={localValue}
+        onChange={handleChange}
+        onBlur={handleBlur}
+      />
+    );
+  }
+
+  return (
+    <input
+      type={type}
+      className={className}
+      value={localValue}
+      onChange={handleChange}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      placeholder={placeholder}
+      onWheel={(e) => e.target.blur()} 
+    />
+  );
+};
+
+export const BudgetView = ({ expenses, updateProject, project }) => {
+  
   // 1. Итоги
   const totals = useMemo(() => {
     return expenses.reduce((acc, item) => ({
@@ -27,8 +106,11 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
   const updateExpense = (index, field, val) => {
     const newExpenses = [...expenses];
     const cleanVal = (field === 'plan' || field === 'fact' || field === 'paid') ? Number(val) : val;
-    newExpenses[index] = { ...newExpenses[index], [field]: cleanVal };
-    updateProject('expenses', newExpenses);
+    
+    if (newExpenses[index][field] !== cleanVal) {
+        newExpenses[index] = { ...newExpenses[index], [field]: cleanVal };
+        updateProject('expenses', newExpenses);
+    }
   };
 
   const addExpense = () => {
@@ -52,22 +134,7 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
     }
   };
 
-  // 3. Фокус
-  const handleFocus = (index, field) => {
-    setActiveField({ index, field });
-  };
-
-  const handleBlur = () => {
-    setActiveField({ index: null, field: null });
-  };
-
-  // 4. Функция авто-высоты для обычного textarea
-  const adjustHeight = (e) => {
-    e.target.style.height = 'auto'; // Сброс высоты
-    e.target.style.height = `${e.target.scrollHeight}px`; // Установка по контенту
-  };
-
-  // 5. Экспорт
+  // 3. Экспорт
   const handleExport = async (type) => {
     const groom = project?.groomName || 'Жених';
     const bride = project?.brideName || 'Невеста';
@@ -99,7 +166,7 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
         const BOM = "\uFEFF";
         const columns = `Статья расходов;План;Факт;Внесено;Остаток;Комментарий\n`;
         const body = tableData.map(r => 
-            `"${r.name.replace(/"/g, '""')}";${r.plan};${r.fact};${r.paid};${r.rest};"${r.note.replace(/"/g, '""')}"`
+            `"${(r.name||'').replace(/"/g, '""')}";${r.plan};${r.fact};${r.paid};${r.rest};"${(r.note||'').replace(/"/g, '""')}"`
         ).join('\n');
         const footer = `\nИТОГО;${totals.plan};${totals.fact};${totals.paid};${totals.fact - totals.paid};`;
         const csvContent = BOM + columns + body + footer;
@@ -154,10 +221,10 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 md:mb-8">
             <h2 className="text-2xl md:text-3xl font-serif text-[#414942]">Смета расходов</h2>
             <div className="flex gap-2 print:hidden w-full md:w-auto">
-                 <DownloadMenu onSelect={handleExport} />
                  <Button onClick={addExpense} variant="primary" className="flex items-center justify-center gap-2 flex-1 md:flex-none">
                     <Plus size={18}/> <span className="md:hidden">Добавить</span><span className="hidden md:inline">Добавить статью</span>
                 </Button>
+                <DownloadMenu onSelect={handleExport} />
             </div>
       </div>
 
@@ -176,99 +243,80 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[1000px] print:min-w-0">
             <thead>
+              {/* ЗАГОЛОВКИ: Сделали цифры еще уже (65px), отдали место названию */}
               <tr className="bg-[#F9F7F5] text-[#936142] text-xs md:text-sm uppercase tracking-wider print:bg-transparent print:border-b print:border-[#414942]">
-                <th className="p-3 md:p-4 font-semibold w-[200px] min-w-[200px]">Статья расходов</th>
-                <th className="p-3 md:p-4 font-semibold w-[120px] min-w-[120px]">План</th>
-                <th className="p-3 md:p-4 font-semibold w-[120px] min-w-[120px]">Факт</th>
-                <th className="p-3 md:p-4 font-semibold w-[120px] min-w-[120px]">Внесено</th>
-                <th className="p-3 md:p-4 font-semibold w-[120px] min-w-[120px]">Остаток</th>
-                <th className="p-3 md:p-4 font-semibold w-[200px] min-w-[200px]">Комментарии</th>
-                <th className="p-3 md:p-4 font-semibold w-10 print:hidden"></th>
+                <th className="p-2 md:p-4 font-semibold w-[140px] min-w-[140px] md:w-[200px] md:min-w-[200px]">Статья расходов</th>
+                <th className="p-2 md:p-4 font-semibold w-[65px] min-w-[65px] md:w-[120px] md:min-w-[120px]">План</th>
+                <th className="p-2 md:p-4 font-semibold w-[65px] min-w-[65px] md:w-[120px] md:min-w-[120px]">Факт</th>
+                <th className="p-2 md:p-4 font-semibold w-[65px] min-w-[65px] md:w-[120px] md:min-w-[120px]">Внесено</th>
+                <th className="p-2 md:p-4 font-semibold w-[65px] min-w-[65px] md:w-[120px] md:min-w-[120px]">Остаток</th>
+                <th className="p-2 md:p-4 font-semibold w-[150px] min-w-[150px] md:w-[200px] md:min-w-[200px]">Комментарии</th>
+                <th className="p-2 md:p-4 font-semibold w-8 md:w-10 print:hidden"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EBE5E0] print:divide-[#CCBBA9]">
               {expenses.map((item, idx) => (
-                // Используем align-top, чтобы при переносе строки цифры оставались напротив первой строки
                 <tr key={item.id || idx} className="hover:bg-[#F9F7F5]/50 group print:break-inside-avoid">
                   
-                  {/* НАЗВАНИЕ - ТЕПЕРЬ ОБЫЧНЫЙ TEXTAREA */}
-                  <td className="py-2 px-2 md:p-4 align-top">
-                    <textarea 
-                        rows={1}
-                        // pt-0.5 для выравнивания текста по высоте с цифрами
-                        className="w-full bg-transparent outline-none font-medium text-[#414942] text-[13px] md:text-base resize-none overflow-hidden leading-[1.2] py-0 m-0 block placeholder-transparent pt-0.5" 
+                  {/* НАЗВАНИЕ: Важно - добавил leading-4 и block, чтобы высота была минимальной */}
+                  <td className="py-1 px-1 md:p-4 align-top">
+                    <BudgetInput 
+                        isTextarea={true}
                         value={item.name} 
-                        onChange={(e) => {
-                            updateExpense(idx, 'name', e.target.value);
-                            adjustHeight(e);
-                        }}
-                        // При загрузке подстраиваем высоту
-                        ref={el => el && adjustHeight({target: el})}
+                        onSave={(val) => updateExpense(idx, 'name', val)}
+                        className="w-full bg-transparent outline-none font-medium text-[#414942] text-[13px] md:text-base resize-none overflow-hidden leading-4 py-1 block placeholder-transparent min-h-[24px]" 
                     />
                   </td>
                   
                   {/* ПЛАН */}
-                  <td className="py-2 px-2 md:p-4 align-top">
-                    <input 
+                  <td className="py-1 px-1 md:p-4 align-top">
+                    <BudgetInput 
                         type="number" 
-                        value={activeField.index === idx && activeField.field === 'plan' && item.plan === 0 ? '' : item.plan} 
-                        onChange={(e) => updateExpense(idx, 'plan', e.target.value)}
-                        onFocus={() => handleFocus(idx, 'plan')}
-                        onBlur={() => handleBlur()}
-                        onWheel={(e) => e.target.blur()} 
-                        className="w-full bg-transparent outline-none text-[#414942] text-[13px] md:text-base placeholder-transparent leading-[1.2] py-0 m-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        value={item.plan} 
+                        onSave={(val) => updateExpense(idx, 'plan', val)}
+                        className="w-full bg-transparent outline-none text-[#414942] text-[13px] md:text-base placeholder-transparent leading-4 py-1 block [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none min-h-[24px]"
                     />
                   </td>
 
                   {/* ФАКТ */}
-                  <td className="py-2 px-2 md:p-4 align-top">
-                    <input 
+                  <td className="py-1 px-1 md:p-4 align-top">
+                    <BudgetInput 
                         type="number"
-                        value={activeField.index === idx && activeField.field === 'fact' && item.fact === 0 ? '' : item.fact} 
-                        onChange={(e) => updateExpense(idx, 'fact', e.target.value)}
-                        onFocus={() => handleFocus(idx, 'fact')}
-                        onBlur={() => handleBlur()}
-                        onWheel={(e) => e.target.blur()}
-                        className="w-full bg-transparent outline-none text-[#414942] text-[13px] md:text-base placeholder-transparent leading-[1.2] py-0 m-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        value={item.fact} 
+                        onSave={(val) => updateExpense(idx, 'fact', val)}
+                        className="w-full bg-transparent outline-none text-[#414942] text-[13px] md:text-base placeholder-transparent leading-4 py-1 block [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none min-h-[24px]"
                     />
                   </td>
 
                   {/* ВНЕСЕНО */}
-                  <td className="py-2 px-2 md:p-4 align-top">
-                    <input 
+                  <td className="py-1 px-1 md:p-4 align-top">
+                    <BudgetInput 
                         type="number"
-                        value={activeField.index === idx && activeField.field === 'paid' && item.paid === 0 ? '' : item.paid} 
-                        onChange={(e) => updateExpense(idx, 'paid', e.target.value)}
-                        onFocus={() => handleFocus(idx, 'paid')}
-                        onBlur={() => handleBlur()}
-                        onWheel={(e) => e.target.blur()}
-                        className="w-full bg-transparent outline-none text-[#414942] text-[13px] md:text-base placeholder-transparent leading-[1.2] py-0 m-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        value={item.paid} 
+                        onSave={(val) => updateExpense(idx, 'paid', val)}
+                        className="w-full bg-transparent outline-none text-[#414942] text-[13px] md:text-base placeholder-transparent leading-4 py-1 block [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none min-h-[24px]"
                     />
                   </td>
                   
                   {/* ОСТАТОК */}
-                  <td className="py-2 px-2 md:p-4 align-top text-[#AC8A69] text-[13px] md:text-base leading-[1.2]">
+                  <td className="py-1 px-1 md:p-4 align-top text-[#AC8A69] text-[13px] md:text-base leading-4 pt-1.5 min-h-[24px]">
                     {formatCurrency(item.fact - item.paid)}
                   </td>
                   
-                  {/* КОММЕНТАРИЙ - ТЕПЕРЬ ОБЫЧНЫЙ TEXTAREA */}
-                  <td className="py-2 px-2 md:p-4 align-top">
-                    <textarea 
-                        rows={1}
-                        className="w-full bg-transparent outline-none text-[11px] md:text-xs text-[#AC8A69] placeholder-[#CCBBA9] resize-none overflow-hidden leading-[1.2] py-0 m-0 block pt-0.5" 
-                        placeholder="..." 
+                  {/* КОММЕНТАРИЙ */}
+                  <td className="py-1 px-1 md:p-4 align-top">
+                    <BudgetInput 
+                        isTextarea={true}
+                        placeholder="..."
                         value={item.note || ''} 
-                        onChange={(e) => {
-                            updateExpense(idx, 'note', e.target.value);
-                            adjustHeight(e);
-                        }}
-                        ref={el => el && adjustHeight({target: el})}
+                        onSave={(val) => updateExpense(idx, 'note', val)}
+                        className="w-full bg-transparent outline-none text-[11px] md:text-xs text-[#AC8A69] placeholder-[#CCBBA9] resize-none overflow-hidden leading-4 py-1 block min-h-[24px]" 
                     />
                   </td>
                   
                   {/* УДАЛЕНИЕ */}
-                  <td className="py-2 px-2 md:p-4 align-top print:hidden">
-                    <button onClick={() => removeExpense(idx)} className="text-red-300 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center pt-0.5">
+                  <td className="py-1 px-1 md:p-4 align-top print:hidden">
+                    <button onClick={() => removeExpense(idx)} className="text-red-300 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center pt-1">
                         <Trash2 size={16} />
                     </button>
                   </td>

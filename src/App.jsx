@@ -49,11 +49,9 @@ const appId = APP_ID_DB;
 
 export default function WeddingPlanner() {
   
-  // 1. ЖЕЛЕЗНАЯ ЛОГИКА: Есть ID в ссылке? -> Сразу показываем client_login.
   const urlParams = new URLSearchParams(window.location.search);
   const linkId = urlParams.get('id');
   
-  // Если linkId есть, view сразу становится 'client_login', иначе 'login'
   const [view, setView] = useState(linkId ? 'client_login' : 'login'); 
 
   const [user, setUser] = useState(null); 
@@ -81,51 +79,184 @@ export default function WeddingPlanner() {
   const [recoveryNewPass, setRecoveryNewPass] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
-  // --- SCROLL MAGIC: Прокрутка наверх при смене экрана или вкладки ---
+  // ==========================================
+  // 1. СНАЧАЛА ОБЪЯВЛЯЕМ ВСЕ ФУНКЦИИ (HANDLERS)
+  // ==========================================
+
+  // Навигация
+  const openProject = (project) => {
+      setCurrentProject(project);
+      setView('project');
+      setActiveTab('overview');
+      setIsEditingProject(false);
+      window.history.pushState({ view: 'project' }, '', '?mode=project');
+  };
+
+  const openDashboard = () => {
+      setView('dashboard');
+      window.history.pushState({ view: 'dashboard' }, '', window.location.pathname);
+  };
+
+  const openOtherView = (viewName) => {
+      setView(viewName);
+      if (viewName === 'create') setFormData({...INITIAL_FORM_STATE, clientPassword: Math.floor(1000+Math.random()*9000).toString()});
+      window.scrollTo(0,0);
+      window.history.pushState({ view: viewName }, '', `?mode=${viewName}`);
+  };
+
+  // Логин
+  const handleLogin = async (email = loginEmail, pass = loginPass, isAuto = false) => {
+    // Если authUser еще нет, инициализируем анонимно (нужно для доступа к базе)
+    if (!auth.currentUser) { await signInAnonymously(auth); }
+    
+    setIsLoginLoading(true);
+    try {
+        const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users'));
+        const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        const cleanInputEmail = email.toLowerCase().trim();
+        const cleanInputPass = String(pass).trim();
+        
+        const foundUser = users.find(u => (u.email||'').toLowerCase().trim() === cleanInputEmail && String(u.password||'').trim() === cleanInputPass);
+        
+        if (foundUser) {
+            const userData = { ...foundUser, agencyId: foundUser.agencyId || 'legacy_agency' };
+            setUser(userData);
+            localStorage.setItem('wed_user', JSON.stringify(userData));
+            setNewProfileEmail(foundUser.email); setNewProfilePass(foundUser.password); setNewProfileSecret(foundUser.secret || '');
+            
+            // Если зашли по ссылке - чистим URL
+            if (isAuto) {
+                window.history.replaceState(null, '', '/');
+            }
+            setView('dashboard');
+        } else { 
+            if (!isAuto) alert('Неверный Email или пароль.'); 
+        }
+    } catch (e) { 
+        console.error(e); 
+        if (!isAuto) alert("Ошибка: " + e.message); 
+    } finally { 
+        setIsLoginLoading(false); 
+    }
+  };
+
+  const handleLogout = () => { localStorage.removeItem('wed_user'); setUser(null); setView('login'); window.history.pushState(null, '', '/'); };
+
+  const handleClientLinkLogin = async () => {
+      if (!linkId) { alert("Ошибка ссылки"); return; }
+      if (!loginPass) { alert("Введите пароль"); return; }
+      setIsLoginLoading(true);
+      try {
+          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', linkId);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+              const data = docSnap.data();
+              if (String(data.clientPassword).trim() === String(loginPass).trim()) {
+                  const projectData = { id: docSnap.id, ...data };
+                  setCurrentProject(projectData);
+                  setUser({ id: 'client', role: 'client', projectId: projectData.id, name: 'Гость' });
+                  setView('project');
+              } else { alert("Неверный пароль от проекта"); }
+          } else { alert("Проект не найден. Проверьте ссылку."); }
+      } catch (e) { console.error(e); alert("Ошибка доступа или соединения"); } finally { setIsLoginLoading(false); }
+  };
+
+  const handleCreateProject = async () => { 
+    if (!formData.groomName || !formData.brideName || !formData.date) { alert("Заполните имена и дату"); return; }
+    setIsCreating(true);
+    try {
+        const creationDate = new Date(); const weddingDate = new Date(formData.date);
+        let rawTasks = [...TASK_TEMPLATES];
+        if (formData.registrationType === 'outdoor' || formData.registrationType === 'both') rawTasks = [...rawTasks, ...OUTDOOR_TASKS];
+        let projectTasks = rawTasks.map(t => ({ id: Math.random().toString(36).substr(2, 9), text: t.text, deadline: new Date(creationDate.getTime() + (weddingDate - creationDate) * t.pos).toISOString(), done: false })).sort((a,b)=>new Date(a.deadline)-new Date(b.deadline));
+        const projectExpenses = INITIAL_EXPENSES.map(e => ({ ...e }));
+        if (formData.registrationType === 'outdoor' || formData.registrationType === 'both') {
+            const hostIndex = projectExpenses.findIndex(e => e.name === 'Ведущий + диджей');
+            if (hostIndex !== -1) projectExpenses.splice(hostIndex + 1, 0, { ...OUTDOOR_EXPENSE }); else projectExpenses.push({ ...OUTDOOR_EXPENSE });
+        }
+        const projectTiming = INITIAL_TIMING.map(t => ({ ...t, id: Math.random().toString(36).substr(2, 9) }));
+        let finalOrgId = user.id; let finalOrgName = user.name;
+        if (user.role === 'agency_admin' && formData.organizerId && formData.organizerId !== 'owner') { 
+            const selectedOrg = organizersList.find(o => o.id === formData.organizerId); 
+            if (selectedOrg) { finalOrgId = selectedOrg.id; finalOrgName = selectedOrg.name; } 
+        }
+        const newProject = { ...formData, clientPassword: formData.clientPassword || Math.floor(1000+Math.random()*9000).toString(), tasks: projectTasks, expenses: projectExpenses, timing: projectTiming, guests: [], notes: '', isArchived: false, organizerName: finalOrgName, organizerId: finalOrgId, agencyId: user.agencyId || 'legacy_agency', createdAt: new Date().toISOString() };
+        const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), newProject);
+        setCurrentProject({ id: docRef.id, ...newProject }); 
+        
+        setView('project'); setActiveTab('overview');
+        window.history.pushState({ view: 'project' }, '', '?mode=project');
+    } catch (e) { console.error(e); alert("Ошибка создания"); } finally { setIsCreating(false); }
+  };
+
+  const updateProject = async (field, value) => { if(!currentProject) return; await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id), { [field]: value }); };
+  const deleteProject = async () => { if(window.confirm("Удалить?")) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id)); setCurrentProject(null); openDashboard(); setIsEditingProject(false); }};
+  const toggleArchiveProject = async () => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id), { isArchived: !currentProject.isArchived }); setIsEditingProject(false); openDashboard(); };
+  
+  const updateUserProfile = async () => { 
+      if (user.email === 'demo@paraplanner.ru') { alert("В демо-режиме изменение профиля заблокировано."); return; }
+      if (!newProfileEmail.trim() || !newProfilePass.trim()) return; await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.id), { email: newProfileEmail.toLowerCase().trim(), password: newProfilePass.trim(), secret: newProfileSecret.trim() }); const updatedUser = {...user, email: newProfileEmail, password: newProfilePass, secret: newProfileSecret}; setUser(updatedUser); localStorage.setItem('wed_user', JSON.stringify(updatedUser)); alert('Данные обновлены'); setShowProfile(false); 
+  };
+  
+  const handleRecovery = async () => { const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users')); const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); const foundUser = users.find(u => u.email === recoveryEmail.toLowerCase().trim() && u.secret === recoverySecret.trim()); if (foundUser) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', foundUser.id), { password: recoveryNewPass.trim() }); alert("Пароль изменен!"); setView('login'); } else { alert("Неверные данные"); } };
+
+
+  // ==========================================
+  // 2. ТЕПЕРЬ ЗАПУСКАЕМ ЭФФЕКТЫ (USE EFFECT)
+  // ==========================================
+
+  // --- SCROLL MAGIC ---
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [view, activeTab]);
 
-  // --- HISTORY MAGIC: Обработка кнопки "Назад" в браузере ---
+  // --- HISTORY MAGIC ---
   useEffect(() => {
     const handlePopState = (event) => {
-        // Если мы были в проекте и нажали назад -> возвращаемся в дашборд
         if (view === 'project') {
             setView('dashboard');
             setCurrentProject(null);
         } 
-        // Если были на создании или в других меню -> тоже в дашборд
         else if (view === 'create' || view === 'manage_organizers' || view === 'vendors_db') {
             setView('dashboard');
         }
     };
-
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, [view]);
 
-  // 2. Init Auth
+  // --- ГЛАВНАЯ ИНИЦИАЛИЗАЦИЯ (АВТОРИЗАЦИЯ + ДЕМО) ---
   useEffect(() => {
-    const initAuth = async () => {
-        await signInAnonymously(auth);
+    const initApp = async () => {
+        if (!auth.currentUser) {
+            await signInAnonymously(auth);
+        }
+
+        // 1. Проверяем авто-вход (DEMO LINK)
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('mode') === 'demo_login') {
+            handleLogin('demo@paraplanner.ru', 'demo123', true);
+            return; 
+        }
+
+        // 2. Если ссылки нет, проверяем сохраненную сессию
         const savedUser = localStorage.getItem('wed_user');
-        if (savedUser) {
+        if (savedUser && !linkId) {
             try {
                 const parsedUser = JSON.parse(savedUser);
-                // Если мы НЕ в режиме гостя (linkId), то восстанавливаем сессию
-                if (parsedUser.role !== 'client' && !linkId) {
-                    setUser(parsedUser);
-                    setNewProfileEmail(parsedUser.email);
-                    setNewProfilePass(parsedUser.password);
-                    setNewProfileSecret(parsedUser.secret || '');
-                    setView('dashboard');
-                }
+                setUser(parsedUser);
+                setNewProfileEmail(parsedUser.email || '');
+                setNewProfilePass(parsedUser.password || '');
+                setNewProfileSecret(parsedUser.secret || '');
+                setView('dashboard');
             } catch (e) {
                 localStorage.removeItem('wed_user');
             }
         }
     };
-    initAuth();
+
+    initApp();
     return onAuthStateChanged(auth, setAuthUser);
   }, []);
 
@@ -164,110 +295,6 @@ export default function WeddingPlanner() {
       return () => unsubscribe();
   }, [currentProject?.id, view]);
 
-  // --- Функция для безопасного открытия проекта ---
-  const openProject = (project) => {
-      setCurrentProject(project);
-      setView('project');
-      setActiveTab('overview');
-      setIsEditingProject(false);
-      // ДОБАВЛЯЕМ ЗАПИСЬ В ИСТОРИЮ БРАУЗЕРА
-      window.history.pushState({ view: 'project' }, '', '?mode=project');
-  };
-
-  const openDashboard = () => {
-      setView('dashboard');
-      // Очищаем URL от ?mode=project
-      window.history.pushState({ view: 'dashboard' }, '', window.location.pathname);
-  };
-
-  const openOtherView = (viewName) => {
-      setView(viewName);
-      if (viewName === 'create') setFormData({...INITIAL_FORM_STATE, clientPassword: Math.floor(1000+Math.random()*9000).toString()});
-      window.scrollTo(0,0);
-      window.history.pushState({ view: viewName }, '', `?mode=${viewName}`);
-  };
-
-  // --- Handlers ---
-  const handleLogin = async () => {
-    if (!authUser) { alert("Нет соединения с сервером"); return; }
-    setIsLoginLoading(true);
-    try {
-        const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users'));
-        const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const cleanInputEmail = loginEmail.toLowerCase().trim();
-        const cleanInputPass = String(loginPass).trim();
-        const foundUser = users.find(u => (u.email||'').toLowerCase().trim() === cleanInputEmail && String(u.password||'').trim() === cleanInputPass);
-        
-        if (foundUser) {
-            const userData = { ...foundUser, agencyId: foundUser.agencyId || 'legacy_agency' };
-            setUser(userData);
-            localStorage.setItem('wed_user', JSON.stringify(userData));
-            setNewProfileEmail(foundUser.email); setNewProfilePass(foundUser.password); setNewProfileSecret(foundUser.secret || '');
-            window.history.replaceState(null, '', '/');
-            setView('dashboard');
-        } else { alert('Неверный Email или пароль.'); }
-    } catch (e) { console.error(e); alert("Ошибка: " + e.message); } finally { setIsLoginLoading(false); }
-  };
-
-  const handleLogout = () => { localStorage.removeItem('wed_user'); setUser(null); setView('login'); window.history.pushState(null, '', '/'); };
-  
-  // 2. Функция входа (срабатывает ТОЛЬКО после нажатия кнопки)
-  const handleClientLinkLogin = async () => {
-      if (!linkId) { alert("Ошибка ссылки"); return; }
-      if (!loginPass) { alert("Введите пароль"); return; }
-      
-      setIsLoginLoading(true);
-      try {
-          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', linkId);
-          const docSnap = await getDoc(docRef);
-          
-          if (docSnap.exists()) {
-              const data = docSnap.data();
-              if (String(data.clientPassword).trim() === String(loginPass).trim()) {
-                  const projectData = { id: docSnap.id, ...data };
-                  setCurrentProject(projectData);
-                  setUser({ id: 'client', role: 'client', projectId: projectData.id, name: 'Гость' });
-                  setView('project');
-              } else { alert("Неверный пароль от проекта"); }
-          } else { alert("Проект не найден. Проверьте ссылку."); }
-      } catch (e) { console.error(e); alert("Ошибка доступа или соединения"); } finally { setIsLoginLoading(false); }
-  };
-  
-  const handleCreateProject = async () => { 
-    if (!formData.groomName || !formData.brideName || !formData.date) { alert("Заполните имена и дату"); return; }
-    setIsCreating(true);
-    try {
-        const creationDate = new Date(); const weddingDate = new Date(formData.date);
-        let rawTasks = [...TASK_TEMPLATES];
-        if (formData.registrationType === 'outdoor' || formData.registrationType === 'both') rawTasks = [...rawTasks, ...OUTDOOR_TASKS];
-        let projectTasks = rawTasks.map(t => ({ id: Math.random().toString(36).substr(2, 9), text: t.text, deadline: new Date(creationDate.getTime() + (weddingDate - creationDate) * t.pos).toISOString(), done: false })).sort((a,b)=>new Date(a.deadline)-new Date(b.deadline));
-        const projectExpenses = INITIAL_EXPENSES.map(e => ({ ...e }));
-        if (formData.registrationType === 'outdoor' || formData.registrationType === 'both') {
-            const hostIndex = projectExpenses.findIndex(e => e.name === 'Ведущий + диджей');
-            if (hostIndex !== -1) projectExpenses.splice(hostIndex + 1, 0, { ...OUTDOOR_EXPENSE }); else projectExpenses.push({ ...OUTDOOR_EXPENSE });
-        }
-        const projectTiming = INITIAL_TIMING.map(t => ({ ...t, id: Math.random().toString(36).substr(2, 9) }));
-        let finalOrgId = user.id; let finalOrgName = user.name;
-        if (user.role === 'agency_admin' && formData.organizerId && formData.organizerId !== 'owner') { 
-            const selectedOrg = organizersList.find(o => o.id === formData.organizerId); 
-            if (selectedOrg) { finalOrgId = selectedOrg.id; finalOrgName = selectedOrg.name; } 
-        }
-        const newProject = { ...formData, clientPassword: formData.clientPassword || Math.floor(1000+Math.random()*9000).toString(), tasks: projectTasks, expenses: projectExpenses, timing: projectTiming, guests: [], notes: '', isArchived: false, organizerName: finalOrgName, organizerId: finalOrgId, agencyId: user.agencyId || 'legacy_agency', createdAt: new Date().toISOString() };
-        const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), newProject);
-        setCurrentProject({ id: docRef.id, ...newProject }); 
-        
-        // Используем новую функцию
-        setView('project'); setActiveTab('overview');
-        window.history.pushState({ view: 'project' }, '', '?mode=project');
-
-    } catch (e) { console.error(e); alert("Ошибка создания"); } finally { setIsCreating(false); }
-  };
-
-  const updateProject = async (field, value) => { if(!currentProject) return; await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id), { [field]: value }); };
-  const deleteProject = async () => { if(window.confirm("Удалить?")) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id)); setCurrentProject(null); openDashboard(); setIsEditingProject(false); }};
-  const toggleArchiveProject = async () => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProject.id), { isArchived: !currentProject.isArchived }); setIsEditingProject(false); openDashboard(); };
-  const updateUserProfile = async () => { if (!newProfileEmail.trim() || !newProfilePass.trim()) return; await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.id), { email: newProfileEmail.toLowerCase().trim(), password: newProfilePass.trim(), secret: newProfileSecret.trim() }); const updatedUser = {...user, email: newProfileEmail, password: newProfilePass, secret: newProfileSecret}; setUser(updatedUser); localStorage.setItem('wed_user', JSON.stringify(updatedUser)); alert('Данные обновлены'); setShowProfile(false); };
-  const handleRecovery = async () => { const snapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users')); const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); const foundUser = users.find(u => u.email === recoveryEmail.toLowerCase().trim() && u.secret === recoverySecret.trim()); if (foundUser) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', foundUser.id), { password: recoveryNewPass.trim() }); alert("Пароль изменен!"); setView('login'); } else { alert("Неверные данные"); } };
 
   // --- VIEWS ---
   
@@ -288,16 +315,32 @@ export default function WeddingPlanner() {
   }
 
   if (view === 'recovery') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><h2 className="text-2xl font-bold text-[#414942] mb-4 text-center">Восстановление</h2><Input placeholder="Email" value={recoveryEmail} onChange={e => setRecoveryEmail(e.target.value)} /><Input placeholder="Секретное слово" value={recoverySecret} onChange={e => setRecoverySecret(e.target.value)} /><Input placeholder="Новый пароль" type="password" value={recoveryNewPass} onChange={e => setRecoveryNewPass(e.target.value)} /><Button className="w-full" onClick={handleRecovery}>Сменить пароль</Button><div className="flex flex-col gap-3 mt-4"><button onClick={() => setView('login')} className="w-full text-center text-sm text-[#AC8A69]">Назад</button><a href={SUPPORT_CONTACT} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 text-xs text-[#CCBBA9] hover:text-[#936142] transition-colors"><MessageCircle size={14} />Написать в поддержку</a></div></div><Footer/></div>);
-  if (view === 'login') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6"><div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4"><div className="text-center mb-6"><Logo className="w-full h-auto mx-auto mb-4" /><p className="text-[#AC8A69]">Система управления свадьбами</p></div><Input placeholder="Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}/><Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}/><Button className="w-full" onClick={handleLogin} disabled={isLoginLoading}>{isLoginLoading?'Вход...':'Войти'}</Button><div className="flex flex-col gap-3 mt-4"><button onClick={() => setView('recovery')} className="w-full text-center text-xs text-[#AC8A69] hover:underline">Забыли пароль?</button><a href={SUPPORT_CONTACT} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 text-xs text-[#CCBBA9] hover:text-[#936142] transition-colors"><MessageCircle size={14} />Написать в поддержку</a></div></div><Footer/></div>);
+  
+  if (view === 'login') return (
+    <div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4">
+            <div className="text-center mb-6"><Logo className="w-full h-auto mx-auto mb-4" /><p className="text-[#AC8A69]">Система управления свадьбами</p></div>
+            
+            <Input placeholder="Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}/>
+            <Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}/>
+            
+            <Button className="w-full" onClick={() => handleLogin()} disabled={isLoginLoading}>
+                {isLoginLoading ? <><Loader2 className="animate-spin mr-2" size={18} /> Вход...</> : 'Войти'}
+            </Button>
+            
+            <div className="flex flex-col gap-3 mt-4"><button onClick={() => setView('recovery')} className="w-full text-center text-xs text-[#AC8A69] hover:underline">Забыли пароль?</button><a href={SUPPORT_CONTACT} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 text-xs text-[#CCBBA9] hover:text-[#936142] transition-colors"><MessageCircle size={14} />Написать в поддержку</a></div>
+        </div>
+        <Footer/>
+    </div>
+  );
   
   if (view === 'create') return <CreateView formData={formData} setFormData={setFormData} handleCreateProject={handleCreateProject} setView={openDashboard} user={user} organizersList={organizersList} />;
   
-  // КНОПКИ НАЗАД ЗАМЕНЕНЫ НА ИСПОЛЬЗОВАНИЕ openDashboard
   if (view === 'manage_organizers') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]"><nav className="p-6 flex items-center gap-4"><button onClick={openDashboard} className="p-2 hover:bg-white rounded-full text-[#AC8A69]"><ChevronLeft/></button><h1 className="text-xl font-bold text-[#414942]">Назад</h1></nav><OrganizersView currentUser={user} db={db} /></div>);
   if (view === 'vendors_db') return (<div className="min-h-screen bg-[#F9F7F5] font-[Montserrat]"><nav className="p-6 flex items-center gap-4"><button onClick={openDashboard} className="p-2 hover:bg-white rounded-full text-[#AC8A69]"><ChevronLeft/></button><h1 className="text-xl font-bold text-[#414942]">Назад</h1></nav><VendorsView agencyId={user.agencyId} /></div>);
   
   if (view === 'super_admin' || (view === 'dashboard' && user?.role === 'super_admin')) {
-      return <SuperAdminView onLogout={handleLogout} currentUser={user} />;
+      return <SuperAdminView onLogout={handleLogout} currentUser={user} db={db} />;
   }
 
   // Сортировка проектов
@@ -321,10 +364,10 @@ export default function WeddingPlanner() {
                 </div>
             </div>
             <div className="flex gap-2 w-full md:w-auto flex-wrap">
-                {/* ИСПОЛЬЗУЕМ openOtherView */}
                 <Button onClick={() => openOtherView('create')}><Plus size={20}/> Новый проект</Button>
-                {user.role === 'organizer' && user.agencyId === 'legacy_agency' && <Button variant="secondary" onClick={() => openOtherView('vendors_db')}><Briefcase size={20}/> База подрядчиков</Button>}
-                {user.role === 'agency_admin' && <Button variant="secondary" onClick={() => openOtherView('manage_organizers')}><Users size={20}/> Команда</Button>}
+                {/* Скрываем кнопки для Демо */}
+                {user.email !== 'demo@paraplanner.ru' && user.role === 'organizer' && user.agencyId === 'legacy_agency' && <Button variant="secondary" onClick={() => openOtherView('vendors_db')}><Briefcase size={20}/> База подрядчиков</Button>}
+                {user.email !== 'demo@paraplanner.ru' && user.role === 'agency_admin' && <Button variant="secondary" onClick={() => openOtherView('manage_organizers')}><Users size={20}/> Команда</Button>}
                 <Button variant="ghost" onClick={handleLogout}><LogOut size={20}/></Button>
             </div>
           </header>
@@ -374,7 +417,6 @@ export default function WeddingPlanner() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {sortedProjects.map(p => (
-                // ИСПОЛЬЗУЕМ openProject ВМЕСТО ПРЯМОЙ УСТАНОВКИ
                 <div key={p.id} onClick={() => openProject(p)} className={`bg-white p-8 rounded-3xl shadow-sm hover:shadow-xl transition-all duration-500 cursor-pointer group border border-[#EBE5E0] hover:border-[#AC8A69]/30 relative overflow-hidden active:scale-[0.98]`}>
                     <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity"><Heart size={64} className="text-[#936142] fill-current"/></div>
                     <div className="relative z-10">
@@ -396,13 +438,13 @@ export default function WeddingPlanner() {
   if (view === 'project' && currentProject) {
     const daysLeft = getDaysUntil(currentProject.date);
     const isClient = user.role === 'client';
+    const isDemoUser = user.email === 'demo@paraplanner.ru';
 
     return (
       <div className="w-full min-h-screen h-auto overflow-visible bg-[#F9F7F5] font-[Montserrat]">
          <div className="hidden print:block text-center text-xl font-bold mb-4 text-[#936142] pt-4">paraplanner.ru</div>
          <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-[#EBE5E0] print:hidden">
             <div className="max-w-7xl mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
-                {/* ИСПОЛЬЗУЕМ openDashboard */}
                 <div className="flex items-center gap-2 md:gap-4">{!isClient && <button onClick={openDashboard} className="p-2 hover:bg-[#F9F7F5] rounded-full transition-colors text-[#AC8A69]"><ChevronLeft /></button>}<Logo className="h-10 md:h-12" /></div>
                 <div className="hidden md:flex gap-1 bg-[#F9F7F5] p-1 rounded-xl">
                     {['overview', 'tasks', 'budget', 'guests', 'timing', 'notes'].map(tab => (
@@ -420,7 +462,7 @@ export default function WeddingPlanner() {
             </div>
          </nav>
          {isEditingProject && !isClient && (
-             <SettingsModal project={currentProject} updateProject={updateProject} onClose={() => setIsEditingProject(false)} toggleArchive={toggleArchiveProject} deleteProject={deleteProject} />
+             <SettingsModal project={currentProject} updateProject={updateProject} onClose={() => setIsEditingProject(false)} toggleArchive={toggleArchiveProject} deleteProject={deleteProject} isDemo={isDemoUser} />
          )}
          <main className="max-w-7xl mx-auto p-4 md:p-12 animate-fadeIn pb-24 print:p-0">
             {activeTab === 'overview' && (

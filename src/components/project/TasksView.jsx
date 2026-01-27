@@ -193,13 +193,14 @@ export const TasksView = ({ tasks, updateProject, formatDate, project }) => {
             {/* Блок кнопок: на мобильном перестраивается в колонку */}
             <div className="w-full md:w-auto flex flex-col sm:flex-row gap-3">
                 
-                {/* Верхний ряд на мобильном: Меню + Добавить */}
+                {/* Верхний ряд на мобильном */}
                 <div className="flex items-center gap-2 md:gap-3">
-                    <DownloadMenu onSelect={handleExport} />
-                    
+                    {/* ПОМЕНЯЛИ МЕСТАМИ: Сначала кнопка Добавить, потом Скачать */}
                     <Button onClick={addTask} className="flex-1 sm:flex-none flex items-center justify-center gap-2">
                         <Plus size={18}/> <span className="sm:inline">Добавить</span>
                     </Button>
+                    
+                    <DownloadMenu onSelect={handleExport} />
                 </div>
 
                 {/* Нижний ряд на мобильном: Фильтры */}
@@ -226,7 +227,6 @@ export const TasksView = ({ tasks, updateProject, formatDate, project }) => {
                 <div className="text-center py-20 text-[#CCBBA9]">
                     <CheckCircle2 size={48} className="mx-auto mb-4 opacity-50"/>
                     <p>Задач в этом списке нет</p>
-                    {/* Кнопка "Создать задачу" полностью удалена */}
                 </div>
             ) : (
                 filteredTasks.map(task => {
@@ -290,9 +290,9 @@ export const TasksView = ({ tasks, updateProject, formatDate, project }) => {
                                         className={`flex items-center gap-1.5 text-xs cursor-pointer px-2 py-1 rounded-md transition-colors whitespace-nowrap ${isOverdue ? 'text-red-500 font-bold bg-red-50' : 'text-[#AC8A69] hover:bg-[#F9F7F5] hover:text-[#936142]'}`}
                                     >
                                         {isOverdue ? <AlertCircle size={14}/> : <Calendar size={14}/>}
-                                        {/* Десктопная версия (полная) */}
+                                        {/* Десктопная версия */}
                                         <span className="hidden md:inline">{formatDate(task.deadline)}</span>
-                                        {/* Мобильная версия (краткая, цифровая) */}
+                                        {/* Мобильная версия */}
                                         <span className="md:hidden">
                                             {new Date(task.deadline).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}
                                         </span>

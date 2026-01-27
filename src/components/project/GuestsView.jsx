@@ -197,10 +197,11 @@ export const GuestsView = ({ guests, updateProject, project }) => {
           </div>
         </div>
         <div className="flex gap-2 w-full md:w-auto">
-          <DownloadMenu onSelect={handleExport} />
+          {/* ПОМЕНЯЛИ МЕСТАМИ: Сначала кнопка Добавить, потом Скачать */}
           <Button onClick={addGuest} variant="primary" className="flex-1 md:flex-none flex items-center gap-2">
             <Plus size={18}/> Добавить гостя
           </Button>
+          <DownloadMenu onSelect={handleExport} />
         </div>
       </div>
 
