@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -10,38 +10,16 @@ import { Card } from '../ui/Card';
 import { DownloadMenu } from '../ui/DownloadMenu';
 import { formatCurrency } from '../../utils';
 
-// --- КОМПОНЕНТ ВВОДА (Оптимизированный по высоте) ---
+// --- ИДЕАЛЬНЫЙ КОМПОНЕНТ ВВОДА (CSS GRID MIRROR) ---
 const BudgetInput = ({ value, onSave, isTextarea, type = "text", className, placeholder }) => {
   const [localValue, setLocalValue] = useState(value);
-  const textareaRef = useRef(null);
 
   useEffect(() => {
     setLocalValue(value);
   }, [value]);
 
-  // СУПЕР-ТОЧНАЯ НАСТРОЙКА ВЫСОТЫ
-  useEffect(() => {
-    if (isTextarea && textareaRef.current) {
-      // 1. Сначала сбрасываем высоту в "auto", чтобы элемент сжался
-      textareaRef.current.style.height = 'auto';
-      
-      // 2. Вычисляем высоту контента
-      const scrollHeight = textareaRef.current.scrollHeight;
-      
-      // 3. Ставим высоту. Если текста нет или мало, ставим минимальную (например, 20px)
-      // Это убирает эффект "пустых высоких строк"
-      textareaRef.current.style.height = `${scrollHeight}px`;
-    }
-  }, [localValue, isTextarea]);
-
   const handleChange = (e) => {
     setLocalValue(e.target.value);
-  };
-
-  const handleFocus = () => {
-    if (type === 'number' && Number(localValue) === 0) {
-      setLocalValue('');
-    }
   };
 
   const handleBlur = () => {
@@ -50,9 +28,14 @@ const BudgetInput = ({ value, onSave, isTextarea, type = "text", className, plac
         valToSave = 0;
         setLocalValue(0);
     }
-    
     if (valToSave !== value) {
       onSave(valToSave);
+    }
+  };
+
+  const handleFocus = () => {
+    if (type === 'number' && Number(localValue) === 0) {
+      setLocalValue('');
     }
   };
 
@@ -62,20 +45,54 @@ const BudgetInput = ({ value, onSave, isTextarea, type = "text", className, plac
     }
   };
 
+  // === МАГИЯ CSS GRID ===
+  // Мы создаем контейнер grid. В одну и ту же ячейку кладем:
+  // 1. Невидимый текст (он растягивает ячейку по высоте).
+  // 2. Textarea (она занимает 100% высоты ячейки).
+  // Результат: Высота всегда идеальна без JavaScript.
   if (isTextarea) {
     return (
-      <textarea
-        ref={textareaRef}
-        rows={1}
-        className={className}
-        placeholder={placeholder}
-        value={localValue}
-        onChange={handleChange}
-        onBlur={handleBlur}
-      />
+      <div className="grid w-full relative">
+        {/* СЛОЙ 1: Невидимый текст, который задает высоту */}
+        <div 
+            className={`${className} invisible pointer-events-none`}
+            style={{ 
+                gridArea: '1 / 1 / 2 / 2', 
+                whiteSpace: 'pre-wrap', 
+                wordBreak: 'break-word',
+                paddingTop: '0.25rem', // Синхронизируем паддинги с textarea
+                paddingBottom: '0.25rem',
+                minHeight: '24px'
+            }}
+            aria-hidden="true"
+        >
+            {/* Добавляем пробел, чтобы пустая строка тоже имела высоту */}
+            {localValue ? localValue + ' ' : placeholder + ' '}
+        </div>
+
+        {/* СЛОЙ 2: Реальное поле ввода */}
+        <textarea
+            className={className}
+            rows={1}
+            value={localValue}
+            placeholder={placeholder}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            style={{ 
+                gridArea: '1 / 1 / 2 / 2', 
+                width: '100%', 
+                height: '100%', 
+                resize: 'none', 
+                overflow: 'hidden',
+                paddingTop: '0.25rem',
+                paddingBottom: '0.25rem'
+            }}
+        />
+      </div>
     );
   }
 
+  // ОБЫЧНЫЙ INPUT (Для цифр)
   return (
     <input
       type={type}
@@ -243,7 +260,6 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[1000px] print:min-w-0">
             <thead>
-              {/* ЗАГОЛОВКИ: Сделали цифры еще уже (65px), отдали место названию */}
               <tr className="bg-[#F9F7F5] text-[#936142] text-xs md:text-sm uppercase tracking-wider print:bg-transparent print:border-b print:border-[#414942]">
                 <th className="p-2 md:p-4 font-semibold w-[140px] min-w-[140px] md:w-[200px] md:min-w-[200px]">Статья расходов</th>
                 <th className="p-2 md:p-4 font-semibold w-[65px] min-w-[65px] md:w-[120px] md:min-w-[120px]">План</th>
@@ -258,13 +274,13 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
               {expenses.map((item, idx) => (
                 <tr key={item.id || idx} className="hover:bg-[#F9F7F5]/50 group print:break-inside-avoid">
                   
-                  {/* НАЗВАНИЕ: Важно - добавил leading-4 и block, чтобы высота была минимальной */}
+                  {/* НАЗВАНИЕ */}
                   <td className="py-1 px-1 md:p-4 align-top">
                     <BudgetInput 
                         isTextarea={true}
                         value={item.name} 
                         onSave={(val) => updateExpense(idx, 'name', val)}
-                        className="w-full bg-transparent outline-none font-medium text-[#414942] text-[13px] md:text-base resize-none overflow-hidden leading-4 py-1 block placeholder-transparent min-h-[24px]" 
+                        className="w-full bg-transparent outline-none font-medium text-[#414942] text-[13px] md:text-base leading-4 block" 
                     />
                   </td>
                   
@@ -310,7 +326,7 @@ export const BudgetView = ({ expenses, updateProject, project }) => {
                         placeholder="..."
                         value={item.note || ''} 
                         onSave={(val) => updateExpense(idx, 'note', val)}
-                        className="w-full bg-transparent outline-none text-[11px] md:text-xs text-[#AC8A69] placeholder-[#CCBBA9] resize-none overflow-hidden leading-4 py-1 block min-h-[24px]" 
+                        className="w-full bg-transparent outline-none text-[11px] md:text-xs text-[#AC8A69] placeholder-[#CCBBA9] leading-4 block" 
                     />
                   </td>
                   
