@@ -1,11 +1,12 @@
 import { Home, Camera, Video, Music, Scissors, Heart, Coffee, Briefcase } from 'lucide-react';
 
-export const SITE_URL = 'https://wed-control.vercel.app'; 
+// --- ИЗМЕНЕНИЕ ЗДЕСЬ: Ставим адрес твоей страницы на Тильде ---
+export const SITE_URL = 'https://paraplanner.ru/app'; 
+
 export const APP_TITLE = 'ParaPlanner';
-// ОБНОВЛЕННЫЙ ЛОГОТИП
 export const LOGO_URL = 'https://optim.tildacdn.com/tild3963-3763-4632-a531-353431666665/-/format/webp/Remove_background_fr.webp';
 
-// --- КОНТАКТ ПОДДЕРЖКИ (Замени на свою ссылку!) ---
+// --- КОНТАКТ ПОДДЕРЖКИ ---
 export const SUPPORT_CONTACT = 'https://t.me/alena_mashkina'; 
 
 // --- FIREBASE CONFIG ---

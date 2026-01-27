@@ -7,6 +7,7 @@ import autoTable from 'jspdf-autotable';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Forms';
 import { formatDate, formatCurrency } from '../../utils';
+import { SITE_URL } from '../../constants'; // ИМПОРТИРУЕМ НОВУЮ ССЫЛКУ
 
 export const SettingsModal = ({ project, updateProject, onClose, toggleArchive, deleteProject }) => {
   const [groomName, setGroomName] = useState(project.groomName);
@@ -18,8 +19,8 @@ export const SettingsModal = ({ project, updateProject, onClose, toggleArchive, 
   const [isExporting, setIsExporting] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // ВЕРНУЛИ ЖЕЛЕЗНУЮ ЛОГИКУ ССЫЛКИ: ?id=...
-  const guestLink = `${window.location.origin}/?id=${project.id}`;
+  // --- ИЗМЕНЕНИЕ: Формируем ссылку используя SITE_URL (paraplanner.ru/app) ---
+  const guestLink = `${SITE_URL}/?id=${project.id}`;
 
   const handleSave = () => {
     updateProject('groomName', groomName);
@@ -296,7 +297,7 @@ export const SettingsModal = ({ project, updateProject, onClose, toggleArchive, 
                 {/* ПАРОЛЬ (ВТОРОЙ) */}
                 <div>
                     <label className="block text-[10px] text-[#AC8A69] font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
-                        <Lock size={10}/> Пароль для гостей
+                        <Lock size={10}/> Пароль для пары
                     </label>
                     <input 
                         className="w-full bg-white border border-[#EBE5E0] text-[#414942] text-sm rounded-lg px-3 py-2 outline-none focus:border-[#AC8A69] transition-colors"
