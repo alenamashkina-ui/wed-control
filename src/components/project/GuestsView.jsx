@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Check, User, Utensils, Wine, MessageSquare, MapPin } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -8,6 +8,133 @@ import autoTable from 'jspdf-autotable';
 import { Button } from '../ui/Button';
 import { DownloadMenu } from '../ui/DownloadMenu';
 import { AutoHeightTextarea } from '../ui/Forms';
+
+// --- МИНИ-КОМПОНЕНТ ДЛЯ ОДНОГО ГОСТЯ (Решает проблему скачков курсора) ---
+const GuestRow = ({ guest, idx, updateGuest, removeGuest }) => {
+    // Локальное состояние для мгновенного отклика
+    const [localData, setLocalData] = useState(guest);
+
+    // Синхронизация, если данные изменились извне (но аккуратно)
+    useEffect(() => {
+        setLocalData(guest);
+    }, [guest]);
+
+    // Обработчик изменений
+    const handleChange = (field, value) => {
+        // 1. Мгновенно обновляем интерфейс
+        setLocalData(prev => ({ ...prev, [field]: value }));
+        // 2. Отправляем в базу
+        updateGuest(guest.id, field, value);
+    };
+
+    return (
+        <div className="group bg-white rounded-xl border border-[#EBE5E0] hover:border-[#AC8A69]/50 transition-all shadow-sm">
+            <div className="flex flex-col md:flex-row">
+                
+                {/* ЛЕВАЯ КОЛОНКА */}
+                <div className="p-5 md:w-5/12 border-b md:border-b-0 md:border-r border-[#EBE5E0] flex flex-col justify-between">
+                    <div className="flex items-start gap-3 mb-4">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#F9F7F5] text-[#CCBBA9] text-xs font-bold flex items-center justify-center mt-1">
+                            {idx + 1}
+                        </span>
+                        <div className="flex-1 space-y-3">
+                            <div>
+                                <label className="block text-[10px] text-[#CCBBA9] font-bold uppercase tracking-wider mb-1">ФИО Гостя</label>
+                                <input 
+                                    className="w-full text-base font-medium text-[#414942] placeholder-[#EBE5E0] outline-none bg-transparent"
+                                    placeholder="Иван Иванов"
+                                    value={localData.name}
+                                    onChange={(e) => handleChange('name', e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] text-[#CCBBA9] font-bold uppercase tracking-wider mb-1">Имя на карточке</label>
+                                <input 
+                                    className="w-full text-sm text-[#414942] placeholder-[#EBE5E0] outline-none bg-transparent"
+                                    placeholder="Ваня"
+                                    value={localData.seatingName}
+                                    onChange={(e) => handleChange('seatingName', e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 pl-9">
+                        <span className="text-xs text-[#AC8A69] font-bold uppercase">Стол №</span>
+                        <input 
+                            className="w-12 text-center text-sm font-bold text-[#414942] bg-[#F9F7F5] rounded py-1 outline-none focus:ring-1 focus:ring-[#AC8A69]"
+                            placeholder="-"
+                            value={localData.table}
+                            onChange={(e) => handleChange('table', e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                {/* ЦЕНТРАЛЬНАЯ КОЛОНКА */}
+                <div className="p-5 md:w-5/12 border-b md:border-b-0 md:border-r border-[#EBE5E0] space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="flex items-center gap-1 text-[10px] text-[#CCBBA9] font-bold uppercase tracking-wider mb-1">
+                                <Utensils size={10}/> Еда
+                            </label>
+                            <AutoHeightTextarea 
+                                className="w-full text-sm text-[#414942] placeholder-[#EBE5E0] outline-none bg-transparent resize-none overflow-hidden"
+                                placeholder="Аллергии, меню..."
+                                value={localData.food}
+                                onChange={(e) => handleChange('food', e.target.value)}
+                                rows={1}
+                            />
+                        </div>
+                        <div>
+                            <label className="flex items-center gap-1 text-[10px] text-[#CCBBA9] font-bold uppercase tracking-wider mb-1">
+                                <Wine size={10}/> Напитки
+                            </label>
+                            <AutoHeightTextarea 
+                                className="w-full text-sm text-[#414942] placeholder-[#EBE5E0] outline-none bg-transparent resize-none overflow-hidden"
+                                placeholder="Предпочтения..."
+                                value={localData.drinks}
+                                onChange={(e) => handleChange('drinks', e.target.value)}
+                                rows={1}
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="flex items-center gap-1 text-[10px] text-[#CCBBA9] font-bold uppercase tracking-wider mb-1">
+                            <MessageSquare size={10}/> Комментарий
+                        </label>
+                        <AutoHeightTextarea 
+                            className="w-full text-sm text-[#414942] placeholder-[#EBE5E0] outline-none bg-transparent resize-none overflow-hidden"
+                            placeholder="Заметки..."
+                            value={localData.comment}
+                            onChange={(e) => handleChange('comment', e.target.value)}
+                            rows={1}
+                        />
+                    </div>
+                </div>
+
+                {/* ПРАВАЯ КОЛОНКА */}
+                <div className="p-4 md:w-2/12 flex md:flex-col justify-between items-center md:items-end bg-[#FAFAFA] md:bg-transparent">
+                    
+                    <div 
+                        onClick={() => handleChange('transfer', !localData.transfer)}
+                        className={`cursor-pointer px-3 py-2 rounded-lg border transition-all flex items-center gap-2 select-none w-full md:w-auto justify-center ${localData.transfer ? 'bg-[#936142] border-[#936142] text-white' : 'bg-white border-[#EBE5E0] text-[#CCBBA9] hover:border-[#AC8A69]'}`}
+                    >
+                        {localData.transfer ? <Check size={14}/> : <MapPin size={14}/>}
+                        <span className="text-xs font-bold uppercase">Трансфер</span>
+                    </div>
+
+                    <button 
+                        onClick={() => removeGuest(guest.id)} 
+                        className="text-[#EBE5E0] hover:text-red-400 transition-colors p-2"
+                        title="Удалить"
+                    >
+                        <Trash2 size={18}/>
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export const GuestsView = ({ guests, updateProject, project }) => {
   
@@ -197,7 +324,7 @@ export const GuestsView = ({ guests, updateProject, project }) => {
           </div>
         </div>
         <div className="flex gap-2 w-full md:w-auto">
-          {/* ПОМЕНЯЛИ МЕСТАМИ: Сначала кнопка Добавить, потом Скачать */}
+          {/* Сначала кнопка Добавить, потом Скачать */}
           <Button onClick={addGuest} variant="primary" className="flex-1 md:flex-none flex items-center gap-2">
             <Plus size={18}/> Добавить гостя
           </Button>
@@ -214,113 +341,13 @@ export const GuestsView = ({ guests, updateProject, project }) => {
             </div>
         ) : (
             guests.map((guest, idx) => (
-            <div key={guest.id} className="group bg-white rounded-xl border border-[#EBE5E0] hover:border-[#AC8A69]/50 transition-all shadow-sm">
-                
-                <div className="flex flex-col md:flex-row">
-                    
-                    {/* ЛЕВАЯ КОЛОНКА */}
-                    <div className="p-5 md:w-5/12 border-b md:border-b-0 md:border-r border-[#EBE5E0] flex flex-col justify-between">
-                        <div className="flex items-start gap-3 mb-4">
-                            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#F9F7F5] text-[#CCBBA9] text-xs font-bold flex items-center justify-center mt-1">
-                                {idx + 1}
-                            </span>
-                            <div className="flex-1 space-y-3">
-                                <div>
-                                    <label className="block text-[10px] text-[#CCBBA9] font-bold uppercase tracking-wider mb-1">ФИО Гостя</label>
-                                    <input 
-                                        className="w-full text-base font-medium text-[#414942] placeholder-[#EBE5E0] outline-none bg-transparent"
-                                        placeholder="Иван Иванов"
-                                        value={guest.name}
-                                        onChange={(e) => updateGuest(guest.id, 'name', e.target.value)}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] text-[#CCBBA9] font-bold uppercase tracking-wider mb-1">Имя на карточке</label>
-                                    <input 
-                                        className="w-full text-sm text-[#414942] placeholder-[#EBE5E0] outline-none bg-transparent"
-                                        placeholder="Ваня"
-                                        value={guest.seatingName}
-                                        onChange={(e) => updateGuest(guest.id, 'seatingName', e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-3 pl-9">
-                            <span className="text-xs text-[#AC8A69] font-bold uppercase">Стол №</span>
-                            <input 
-                                className="w-12 text-center text-sm font-bold text-[#414942] bg-[#F9F7F5] rounded py-1 outline-none focus:ring-1 focus:ring-[#AC8A69]"
-                                placeholder="-"
-                                value={guest.table}
-                                onChange={(e) => updateGuest(guest.id, 'table', e.target.value)}
-                            />
-                        </div>
-                    </div>
-
-                    {/* ЦЕНТРАЛЬНАЯ КОЛОНКА */}
-                    <div className="p-5 md:w-5/12 border-b md:border-b-0 md:border-r border-[#EBE5E0] space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="flex items-center gap-1 text-[10px] text-[#CCBBA9] font-bold uppercase tracking-wider mb-1">
-                                    <Utensils size={10}/> Еда
-                                </label>
-                                <AutoHeightTextarea 
-                                    className="w-full text-sm text-[#414942] placeholder-[#EBE5E0] outline-none bg-transparent resize-none overflow-hidden"
-                                    placeholder="Аллергии, меню..."
-                                    value={guest.food}
-                                    onChange={(e) => updateGuest(guest.id, 'food', e.target.value)}
-                                    rows={1}
-                                />
-                            </div>
-                            <div>
-                                <label className="flex items-center gap-1 text-[10px] text-[#CCBBA9] font-bold uppercase tracking-wider mb-1">
-                                    <Wine size={10}/> Напитки
-                                </label>
-                                <AutoHeightTextarea 
-                                    className="w-full text-sm text-[#414942] placeholder-[#EBE5E0] outline-none bg-transparent resize-none overflow-hidden"
-                                    placeholder="Предпочтения..."
-                                    value={guest.drinks}
-                                    onChange={(e) => updateGuest(guest.id, 'drinks', e.target.value)}
-                                    rows={1}
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="flex items-center gap-1 text-[10px] text-[#CCBBA9] font-bold uppercase tracking-wider mb-1">
-                                <MessageSquare size={10}/> Комментарий
-                            </label>
-                            <AutoHeightTextarea 
-                                className="w-full text-sm text-[#414942] placeholder-[#EBE5E0] outline-none bg-transparent resize-none overflow-hidden"
-                                placeholder="Заметки..."
-                                value={guest.comment}
-                                onChange={(e) => updateGuest(guest.id, 'comment', e.target.value)}
-                                rows={1}
-                            />
-                        </div>
-                    </div>
-
-                    {/* ПРАВАЯ КОЛОНКА */}
-                    <div className="p-4 md:w-2/12 flex md:flex-col justify-between items-center md:items-end bg-[#FAFAFA] md:bg-transparent">
-                        
-                        <div 
-                            onClick={() => updateGuest(guest.id, 'transfer', !guest.transfer)}
-                            className={`cursor-pointer px-3 py-2 rounded-lg border transition-all flex items-center gap-2 select-none w-full md:w-auto justify-center ${guest.transfer ? 'bg-[#936142] border-[#936142] text-white' : 'bg-white border-[#EBE5E0] text-[#CCBBA9] hover:border-[#AC8A69]'}`}
-                        >
-                            {guest.transfer ? <Check size={14}/> : <MapPin size={14}/>}
-                            <span className="text-xs font-bold uppercase">Трансфер</span>
-                        </div>
-
-                        <button 
-                            onClick={() => removeGuest(guest.id)} 
-                            className="text-[#EBE5E0] hover:text-red-400 transition-colors p-2"
-                            title="Удалить"
-                        >
-                            <Trash2 size={18}/>
-                        </button>
-                    </div>
-
-                </div>
-            </div>
+                <GuestRow 
+                    key={guest.id} 
+                    guest={guest} 
+                    idx={idx} 
+                    updateGuest={updateGuest} 
+                    removeGuest={removeGuest} 
+                />
             ))
         )}
       </div>

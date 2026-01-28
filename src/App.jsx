@@ -4,7 +4,7 @@ import {
   MapPin, X, ArrowRight, CalendarDays, PieChart, Settings, 
   LogOut, Link as LinkIcon, Edit3, Shield, Printer, 
   Star, Building, Briefcase, CheckSquare, MessageCircle, Loader2,
-  ListFilter 
+  ListFilter, Eye, EyeOff, AlertCircle 
 } from 'lucide-react'; 
 
 import { initializeApp } from "firebase/app";
@@ -50,15 +50,13 @@ const appId = APP_ID_DB;
 export default function WeddingPlanner() {
   
   // --- ЖЕЛЕЗНАЯ ЛОГИКА ИНИЦИАЛИЗАЦИИ ---
-  // Мы определяем состояние ДО того, как React начнет что-то рисовать.
   
   // 1. Смотрим ссылку
   const urlParams = new URLSearchParams(window.location.search);
   const linkId = urlParams.get('id');
   const isDemo = urlParams.get('mode') === 'demo_login';
 
-  // 2. Смотрим память (localStorage), НО ТОЛЬКО если это не гостевая ссылка!
-  // Если есть ID в ссылке, мы притворяемся, что localStorage пуст.
+  // 2. Смотрим память (localStorage)
   const getInitialUser = () => {
     if (linkId) return null; // Гость всегда начинает "чистым"
     
@@ -69,9 +67,6 @@ export default function WeddingPlanner() {
   const initialUser = getInitialUser();
 
   // 3. Устанавливаем начальное состояние
-  // Если есть linkId -> 'client_login'
-  // Если есть сохраненный юзер -> 'dashboard'
-  // Иначе -> 'login'
   const [view, setView] = useState(() => {
     if (linkId) return 'client_login';
     if (initialUser) return 'dashboard';
@@ -92,8 +87,17 @@ export default function WeddingPlanner() {
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [sortBy, setSortBy] = useState('date'); 
     
+  // State для логина (Агентство)
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPass, setLoginPass] = useState('');
+  const [showPass, setShowPass] = useState(false); // Глазик для агентства
+  const [loginError, setLoginError] = useState(''); // Ошибка для агентства
+
+  // State для логина (Гость)
+  const [clientPass, setClientPass] = useState(''); // Отдельный стейт для пароля гостя
+  const [showClientPass, setShowClientPass] = useState(false); // Глазик для гостя
+  const [clientError, setClientError] = useState(''); // Ошибка для гостя
+
   const [showProfile, setShowProfile] = useState(false);
   const [newProfilePass, setNewProfilePass] = useState(initialUser?.password || '');
   const [newProfileEmail, setNewProfileEmail] = useState(initialUser?.email || '');
@@ -118,7 +122,6 @@ export default function WeddingPlanner() {
 
   const openDashboard = () => {
       setView('dashboard');
-      // ВАЖНО: сохраняем чистый путь без параметров, но ТОЛЬКО если мы уже в админке
       window.history.pushState({ view: 'dashboard' }, '', window.location.pathname);
   };
 
@@ -130,6 +133,7 @@ export default function WeddingPlanner() {
   };
 
   const handleLogin = async (email = loginEmail, pass = loginPass, isAuto = false) => {
+    setLoginError(''); // Сброс ошибки
     if (!auth.currentUser) { await signInAnonymously(auth); }
     setIsLoginLoading(true);
     try {
@@ -144,30 +148,74 @@ export default function WeddingPlanner() {
             setNewProfileEmail(foundUser.email); setNewProfilePass(foundUser.password); setNewProfileSecret(foundUser.secret || '');
             if (isAuto) window.history.replaceState(null, '', '/');
             setView('dashboard');
-        } else { if (!isAuto) alert('Неверный Email или пароль.'); }
-    } catch (e) { console.error(e); if (!isAuto) alert("Ошибка: " + e.message); } finally { setIsLoginLoading(false); }
+        } else { 
+            if (!isAuto) setLoginError('Неверный Email или пароль');
+        }
+    } catch (e) { 
+        console.error(e); 
+        if (!isAuto) setLoginError("Ошибка соединения: " + e.message); 
+    } finally { setIsLoginLoading(false); }
   };
 
-  const handleLogout = () => { localStorage.removeItem('wed_user'); setUser(null); setView('login'); window.history.pushState(null, '', '/'); };
+  // --- ИСПРАВЛЕННЫЙ ВЫХОД (Полный сброс) ---
+  const handleLogout = () => { 
+      localStorage.removeItem('wed_user'); 
+      setUser(null); 
+      setCurrentProject(null); 
+      setIsLoginLoading(false); 
+      // Сбрасываем все поля ввода
+      setLoginEmail('');
+      setLoginPass('');
+      setClientPass('');
+      setLoginError('');
+      setClientError('');
+      
+      setView('login'); 
+      window.history.pushState(null, '', '/'); 
+  };
 
-  // ВХОД ДЛЯ ГОСТЯ (Только пароль)
+  // --- УНИВЕРСАЛЬНЫЙ ВХОД ДЛЯ ГОСТЯ ---
   const handleClientLinkLogin = async () => {
-      if (!linkId) { alert("Ошибка ссылки"); return; }
-      if (!loginPass) { alert("Введите пароль"); return; }
+      setClientError(''); // Сброс ошибки
+      if (!linkId) { setClientError("Ошибка ссылки"); return; }
+      if (!clientPass) { setClientError("Введите пароль"); return; }
+      
       setIsLoginLoading(true);
       try {
+          if (!auth.currentUser) { await signInAnonymously(auth); }
+
           const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', linkId);
           const docSnap = await getDoc(docRef);
+          
           if (docSnap.exists()) {
               const data = docSnap.data();
-              if (String(data.clientPassword).trim() === String(loginPass).trim()) {
+              
+              const dbPass = String(data.clientPassword || '').trim();
+              const inputPass = String(clientPass).trim();
+
+              // ВАРИАНТ 1: Строгое совпадение
+              const isStrictMatch = dbPass === inputPass;
+              // ВАРИАНТ 2: Мягкое совпадение
+              const isLooseMatch = dbPass.toLowerCase() === inputPass.toLowerCase();
+
+              if (isStrictMatch || isLooseMatch) {
                   const projectData = { id: docSnap.id, ...data };
                   setCurrentProject(projectData);
                   setUser({ id: 'client', role: 'client', projectId: projectData.id, name: 'Гость' });
                   setView('project');
-              } else { alert("Неверный пароль от проекта"); }
-          } else { alert("Проект не найден. Проверьте ссылку."); }
-      } catch (e) { console.error(e); alert("Ошибка доступа или соединения"); } finally { setIsLoginLoading(false); }
+              } else { 
+                  setClientError("Неверный пароль от проекта"); 
+                  setIsLoginLoading(false); 
+              }
+          } else { 
+              setClientError("Проект не найден. Проверьте ссылку."); 
+              setIsLoginLoading(false);
+          }
+      } catch (e) { 
+          console.error("Login Error:", e); 
+          setClientError("Ошибка доступа или соединения"); 
+          setIsLoginLoading(false);
+      } 
   };
 
   const handleCreateProject = async () => { 
@@ -252,13 +300,52 @@ export default function WeddingPlanner() {
   if (view === 'client_login') {
       return (
         <div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center">
-                <Logo className="h-24 mx-auto mb-6" />
-                <h2 className="text-2xl font-serif text-[#414942] mb-2">Добро пожаловать</h2>
-                <p className="text-[#AC8A69] mb-8">Введите пароль от вашей свадьбы</p>
-                <Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleClientLinkLogin()}/>
-                <Button className="w-full mt-4" onClick={handleClientLinkLogin} disabled={isLoginLoading}>{isLoginLoading ? 'Вход...' : 'Войти'}</Button>
-                <div className="mt-6 flex justify-center"><a href={SUPPORT_CONTACT} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs text-[#CCBBA9] hover:text-[#936142] transition-colors"><MessageCircle size={14} /> Поддержка</a></div>
+            <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center min-h-[300px] flex flex-col justify-center transition-all duration-500">
+                {isLoginLoading ? (
+                    // ------------------ ЭКРАН ЗАГРУЗКИ ------------------
+                    <div className="animate-fadeIn flex flex-col items-center py-8">
+                        <div className="relative mb-6">
+                            <div className="absolute inset-0 bg-[#AC8A69] rounded-full opacity-20 animate-ping"></div>
+                            <Loader2 className="text-[#936142] animate-spin relative z-10" size={48} />
+                        </div>
+                        <h2 className="text-xl font-serif text-[#414942] animate-pulse mb-2">Добро пожаловать</h2>
+                        <p className="text-[#AC8A69] text-sm">Ваш проект загружается...</p>
+                    </div>
+                ) : (
+                    <>
+                        <Logo className="h-24 mx-auto mb-6" />
+                        <h2 className="text-2xl font-serif text-[#414942] mb-2">Добро пожаловать</h2>
+                        <p className="text-[#AC8A69] mb-8">Введите пароль от вашей свадьбы</p>
+                        
+                        {/* ПОЛЕ ПАРОЛЯ С ГЛАЗИКОМ */}
+                        <div className="relative w-full">
+                            <Input 
+                                placeholder="Пароль" 
+                                type={showClientPass ? "text" : "password"} 
+                                value={clientPass} 
+                                onChange={e => {setClientPass(e.target.value); setClientError('');}} 
+                                onKeyDown={(e) => e.key === 'Enter' && handleClientLinkLogin()}
+                            />
+                            <button 
+                                onClick={() => setShowClientPass(!showClientPass)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#AC8A69] hover:text-[#936142] transition-colors"
+                            >
+                                {showClientPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
+                        </div>
+
+                        {/* КРАСИВОЕ СООБЩЕНИЕ ОБ ОШИБКЕ */}
+                        {clientError && (
+                            <div className="flex items-center gap-2 text-[#E55B5B] text-sm animate-fadeIn mt-2 justify-center bg-[#FEF2F2] py-2 px-3 rounded-lg border border-[#FCA5A5]/30">
+                                <AlertCircle size={16} />
+                                <span>{clientError}</span>
+                            </div>
+                        )}
+
+                        <Button className="w-full mt-4" onClick={handleClientLinkLogin}>Войти</Button>
+                        <div className="mt-6 flex justify-center"><a href={SUPPORT_CONTACT} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs text-[#CCBBA9] hover:text-[#936142] transition-colors"><MessageCircle size={14} /> Поддержка</a></div>
+                    </>
+                )}
             </div>
             <Footer/>
         </div>
@@ -271,8 +358,38 @@ export default function WeddingPlanner() {
     <div className="min-h-screen bg-[#F9F7F5] font-[Montserrat] flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-4">
             <div className="text-center mb-6"><Logo className="w-full h-auto mx-auto mb-4" /><p className="text-[#AC8A69]">Система управления свадьбами</p></div>
-            <Input placeholder="Email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}/>
-            <Input placeholder="Пароль" type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}/>
+            <Input 
+                placeholder="Email" 
+                value={loginEmail} 
+                onChange={e => {setLoginEmail(e.target.value); setLoginError('');}} 
+                onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}
+            />
+            
+            {/* ПОЛЕ ПАРОЛЯ С ГЛАЗИКОМ (ДЛЯ АГЕНТСТВА) */}
+            <div className="relative w-full">
+                <Input 
+                    placeholder="Пароль" 
+                    type={showPass ? "text" : "password"} 
+                    value={loginPass} 
+                    onChange={e => {setLoginPass(e.target.value); setLoginError('');}} 
+                    onKeyDown={(e)=>e.key==='Enter'&&handleLogin()}
+                />
+                <button 
+                    onClick={() => setShowPass(!showPass)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#AC8A69] hover:text-[#936142] transition-colors"
+                >
+                    {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+            </div>
+
+            {/* ОШИБКА АГЕНТСТВА */}
+            {loginError && (
+                <div className="flex items-center gap-2 text-[#E55B5B] text-sm animate-fadeIn justify-center bg-[#FEF2F2] py-2 px-3 rounded-lg border border-[#FCA5A5]/30">
+                    <AlertCircle size={16} />
+                    <span>{loginError}</span>
+                </div>
+            )}
+
             <Button className="w-full" onClick={() => handleLogin()} disabled={isLoginLoading}>{isLoginLoading ? <><Loader2 className="animate-spin mr-2" size={18} /> Вход...</> : 'Войти'}</Button>
             <div className="flex flex-col gap-3 mt-4"><button onClick={() => setView('recovery')} className="w-full text-center text-xs text-[#AC8A69] hover:underline">Забыли пароль?</button><a href={SUPPORT_CONTACT} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 text-xs text-[#CCBBA9] hover:text-[#936142] transition-colors"><MessageCircle size={14} />Написать в поддержку</a></div>
         </div>

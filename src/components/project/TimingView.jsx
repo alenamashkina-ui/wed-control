@@ -44,6 +44,22 @@ const TimingItem = ({ item, onUpdate, onRemove }) => {
         }
     };
 
+    // --- МАГИЯ ВВОДА ВРЕМЕНИ ---
+    const handleTimeChange = (e) => {
+        // 1. Оставляем только цифры
+        let v = e.target.value.replace(/\D/g, '');
+        
+        // 2. Ограничиваем длину (HHMM = 4 цифры)
+        if (v.length > 4) v = v.slice(0, 4);
+
+        // 3. Если введено больше 2 цифр, вставляем двоеточие
+        if (v.length > 2) {
+            v = v.slice(0, 2) + ':' + v.slice(2);
+        }
+
+        setLocalTime(v);
+    };
+
     return (
         <div className="relative pl-6 group print:pl-0 print:border-b print:pb-2 print:border-[#EBE5E0]">
             {/* Точка timeline */}
@@ -55,8 +71,9 @@ const TimingItem = ({ item, onUpdate, onRemove }) => {
                     className="w-16 md:w-20 text-base md:text-lg font-bold text-[#936142] bg-transparent outline-none text-right font-mono print:text-left print:w-20 placeholder-red-300/50 pt-1" 
                     value={localTime} 
                     placeholder="00:00"
-                    onChange={(e) => setLocalTime(e.target.value)} 
+                    onChange={handleTimeChange} // Используем нашу новую функцию
                     onBlur={handleBlur} 
+                    maxLength={5} // Ограничение визуальной длины (12:34)
                 />
                 
                 {/* СОБЫТИЕ (Теперь Textarea) */}
